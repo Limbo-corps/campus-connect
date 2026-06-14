@@ -7,11 +7,11 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY backend/pyproject.toml .
-COPY backend/uv.lock* ./
+COPY pyproject.toml .
+COPY uv.lock* ./
 
 RUN uv sync --frozen || uv sync
 
-COPY backend .
+COPY . .
 
 CMD ["uv", "run", "python", "manage.py", "runserver", "0.0.0.0:8000"]
