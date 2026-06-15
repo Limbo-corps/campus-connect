@@ -41,6 +41,7 @@ services:
 
     volumes:
       - ./backend:/app
+      - backend_venv:/app/.venv
 
     ports:
       - "8000:8000"
@@ -75,6 +76,7 @@ volumes:
   postgres_data:
   frontend_node_modules:
   frontend_next:
+  backend_venv:
 
 networks:
   campusconnect:
