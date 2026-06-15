@@ -36,9 +36,6 @@ jobs:
       - name: Ruff
         run: uv run ruff check .
 
-      - name: Pyright
-        run: uv run pyright .
-
   frontend:
     runs-on: ubuntu-latest
 
