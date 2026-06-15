@@ -3,7 +3,6 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
-from backend import campuses
 
 from .models import Campus
 from .serializers import CampusSerializer

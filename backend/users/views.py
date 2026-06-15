@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from rest_framework import generics, permissions
 from .serializers import RegisterSerializer, UserSerializer
 # Create your views here.

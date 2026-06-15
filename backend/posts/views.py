@@ -182,7 +182,7 @@ def unlike_post(request, post_id):
         return Response({"message": "Post Unliked"}, status=status.HTTP_200_OK)
     except Like.DoesNotExist:
         return Response({"error": "Like not found"}, status=status.HTTP_404_NOT_FOUND)
-    except Exception as e:
+    except Exception:
         return Response(
             {"error": "Internal Error occured"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,
