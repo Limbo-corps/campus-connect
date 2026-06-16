@@ -13,7 +13,11 @@ class User(AbstractUser):
     )
 
     bio = models.TextField(blank=True)
-    avatar_url = models.URLField(blank=True)
+    avatar_url = models.URLField(blank=True, max_length=500)
+
+    # Profile customisation
+    profile_template = models.CharField(max_length=32, default="aurora", blank=True)
+    tagline = models.CharField(max_length=120, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
