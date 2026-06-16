@@ -1,36 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Campus Connect — Frontend
 
-## Getting Started
+Next.js (App Router) + React 19 + TypeScript + Tailwind CSS v4 + HeroUI v3.
+Talks to the Django backend over REST. Package manager: **pnpm**.
 
-First, run the development server:
+---
+
+## Prerequisites
+
+- **Node.js** 20+ (LTS recommended)
+- **pnpm** — install with `npm install -g pnpm` if you don't have it
+- The **backend running** (see [../backend/README.md](../backend/README.md))
+
+---
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd frontend
+
+# 1. Environment
+cp .env.local.example .env.local
+#   NEXT_PUBLIC_API_URL          → backend API base, e.g. http://localhost:8000/api
+#   NEXT_PUBLIC_GOOGLE_CLIENT_ID → optional, enables Google sign-in
+
+# 2. Install
+pnpm install
+
+# 3. Run the dev server
+pnpm dev          # → http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Other scripts
+```bash
+pnpm build        # production build
+pnpm start        # serve the production build
+pnpm lint         # eslint
+npx tsc --noEmit  # type-check without emitting
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+| Variable | Required | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_API_URL` | yes | Backend API base URL **including `/api`**. Defaults to `http://localhost:8000/api` if unset. |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | no | Google OAuth client ID. When blank, the Google button is hidden. |
 
-To learn more about Next.js, take a look at the following resources:
+> Anything prefixed `NEXT_PUBLIC_` is exposed to the browser — never put secrets here.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+---
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Project structure
 
-## Deploy on Vercel
+```
+src/
+├── app/
+│   ├── layout.tsx            root layout (fonts, providers, no-flash theme script)
+│   ├── icon.svg              favicon (the Campus Connect logo)
+│   ├── (auth)/login/         login + register
+│   └── (main)/               authenticated area (navbar + dialogs)
+│       ├── feed/  campus/  profile/
+├── components/
+│   ├── Logo.tsx              the SVG brand mark
+│   ├── AboutModal / HelpModal
+│   ├── layout/               AppNavbar, NotificationsBell, ThemePicker
+│   ├── posts/                PostCard (like/edit/delete), CreatePostModal
+│   ├── profile/              EditProfileModal (avatar/template/details)
+│   └── campus/ comments/
+├── contexts/                 Auth, ThemeAccent, Dialogs
+├── hooks/                    SWR data hooks (usePosts, useCampuses, useComments)
+├── lib/                      api (axios), avatars (DiceBear), banners, templates, themes
+└── types/                    shared TypeScript interfaces
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## How a few things work
+
+- **Theming** — the whole app's accent is driven by one CSS variable, `--app-hue`, on
+  `<html>`. The 🎨 picker in the navbar sets it; it's persisted in `localStorage` and
+  applied pre-paint by an inline script in `layout.tsx`. Light/dark is handled by
+  `next-themes`.
+- **Avatars / campus emblems** — generated on the fly via the free DiceBear API
+  (`lib/avatars.ts`). A user's chosen avatar is saved as their `avatar_url`.
+- **Modals** — dialogs (create/edit post, edit profile, about, help) render via
+  `createPortal` into `document.body` for reliable centering.
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| Every API call fails / 401 | Backend not running, or `NEXT_PUBLIC_API_URL` is wrong (must end in `/api`). |
+| CORS error in console | Add your origin to `CORS_ALLOWED_ORIGINS` in the backend settings. |
+| Changed `.env.local` but nothing changed | Restart `pnpm dev` — env is read at boot. |
+| Google button missing | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` is blank (expected) — set it to enable. |
+| Avatars/banners blank | DiceBear/Unsplash are external; check connectivity. |
+| Port 3000 in use | `pnpm dev -p 3001`. |

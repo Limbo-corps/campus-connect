@@ -20,6 +20,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         return User.objects.create_user(**validated_data)
 
 class UserSerializer(serializers.ModelSerializer):
+    campus = serializers.PrimaryKeyRelatedField(read_only=True)
+
     class Meta:
         model = User
         fields = [
@@ -30,4 +32,22 @@ class UserSerializer(serializers.ModelSerializer):
             "last_name",
             "bio",
             "avatar_url",
+            "profile_template",
+            "tagline",
+            "campus",
+        ]
+
+
+class UpdateProfileSerializer(serializers.ModelSerializer):
+    """Only the fields a user is allowed to edit about themselves."""
+
+    class Meta:
+        model = User
+        fields = [
+            "first_name",
+            "last_name",
+            "bio",
+            "avatar_url",
+            "profile_template",
+            "tagline",
         ]

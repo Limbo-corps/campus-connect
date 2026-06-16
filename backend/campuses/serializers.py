@@ -15,6 +15,8 @@ class CampusSerializer(serializers.ModelSerializer):
             "city",
             "state",
             "description",
+            "logo_url",
+            "banner_url",
             "students_count",
             "created_at",
         ]
@@ -25,4 +27,7 @@ class CampusSerializer(serializers.ModelSerializer):
         ]
 
     def get_students_count(self, obj):
+        annotated = getattr(obj, "num_students", None)
+        if annotated is not None:
+            return annotated
         return obj.students.count()
