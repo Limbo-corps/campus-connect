@@ -38,6 +38,8 @@ def contact(request):
             {"error": "Contact is not configured on the server."},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
+    
+    name = "".join((request.data.get("name")or "").splitlines()).strip()[:120]
 
     subject = f"[Campus Connect] Help request from {name or 'a user'}"
     body = (

@@ -45,9 +45,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (username: string, password: string) => {
-    const { data } = await api.post<{ access: string; refresh: string }>('/auth/login/', { username, password })
+    const { data } = await api.post<{ access: string }>('/auth/login/', { username, password })
     localStorage.setItem('access_token', data.access)
-    localStorage.setItem('refresh_token', data.refresh)
     await fetchUser()
   }
 
@@ -59,13 +58,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = async (credential: string) => {
     const data = await googleLoginApi(credential)
     localStorage.setItem('access_token', data.access)
-    localStorage.setItem('refresh_token', data.refresh)
     await fetchUser()
   }
 
-  const logout = () => {
-    localStorage.clear()
-    setUser(null)
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout/')
+    } catch (err) {
+      console.error('Logout error', err)
+    } finally {
+      localStorage.clear()
+      setUser(null)
+    }
   }
 
   const refreshUser = async () => { await fetchUser() }

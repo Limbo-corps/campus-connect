@@ -11,6 +11,9 @@ services:
       POSTGRES_USER: campusconnect
       POSTGRES_PASSWORD: campusconnect
 
+    ports:
+      - "5432:5432"
+
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -34,6 +37,9 @@ services:
 
     env_file:
       - ./backend/.env
+
+    environment:
+      - POSTGRES_HOST=postgres
 
     depends_on:
       postgres:

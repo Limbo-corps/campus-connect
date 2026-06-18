@@ -3,10 +3,14 @@ import urllib.request
 import uuid
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from rest_framework import generics, permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
 from .serializers import (
     RegisterSerializer,
@@ -39,6 +43,94 @@ class MeView(generics.RetrieveUpdateAPIView):
         # Always return the full user representation after an update.
         super().update(request, *args, **kwargs)
         return Response(UserSerializer(self.get_object()).data)
+
+
+class CookieTokenObtainPairView(TokenObtainPairView):
+    """Custom login view that sets the refresh token in an HttpOnly cookie."""
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+
+        response_data = serializer.validated_data
+        access_token = response_data.get("access")
+        refresh_token = response_data.get("refresh")
+
+        response = Response({"access": access_token}, status=status.HTTP_200_OK)
+
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite="Lax",
+            max_age=24 * 60 * 60,  # 1 day
+        )
+        return response
+
+
+class CookieTokenRefreshView(TokenRefreshView):
+    """Custom token refresh view that reads the refresh token from an HttpOnly cookie."""
+
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get("refresh_token")
+
+        if not refresh_token:
+            refresh_token = request.data.get("refresh")
+
+        if not refresh_token:
+            return Response({"error": "Refresh token not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        mutable_data = request.data.copy()
+        mutable_data["refresh"] = refresh_token
+
+        serializer = self.get_serializer(data=mutable_data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except (InvalidToken, TokenError) as e:
+            return Response({"error": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+
+        response_data = serializer.validated_data
+        access_token = response_data.get("access")
+        new_refresh_token = response_data.get("refresh")
+
+        response = Response({"access": access_token}, status=status.HTTP_200_OK)
+
+        if new_refresh_token:
+            response.set_cookie(
+                key="refresh_token",
+                value=new_refresh_token,
+                httponly=True,
+                secure=not settings.DEBUG,
+                samesite="Lax",
+                max_age=24 * 60 * 60,
+            )
+        return response
+
+
+class CookieLogoutView(APIView):
+    """Logout view that clears the refresh token cookie and optionally blacklists the token."""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        refresh_token = request.COOKIES.get("refresh_token")
+        if not refresh_token:
+            refresh_token = request.data.get("refresh")
+
+        if refresh_token:
+            try:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
+            except Exception:
+                pass  # Safe fallback if blacklisting is not configured/already expired
+
+        response = Response({"message": "Successfully logged out"}, status=status.HTTP_200_OK)
+        response.delete_cookie("refresh_token")
+        return response
 
 
 @api_view(["POST"])
@@ -79,10 +171,20 @@ def google_auth(request):
             user.save(update_fields=["avatar_url"])
 
         refresh = RefreshToken.for_user(user)
-        return Response({
+        response = Response({
             "access": str(refresh.access_token),
-            "refresh": str(refresh),
-        })
+        }, status=status.HTTP_200_OK)
+
+        response.set_cookie(
+            key="refresh_token",
+            value=str(refresh),
+            httponly=True,
+            secure=not settings.DEBUG,
+            samesite="Lax",
+            max_age=24 * 60 * 60,
+        )
+        return response
 
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+

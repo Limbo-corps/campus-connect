@@ -22,6 +22,8 @@ class User(AbstractUser):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    email = models.EmailField(unique=True)
+
     campus = models.ForeignKey(
         "campuses.Campus",
         on_delete=models.SET_NULL,

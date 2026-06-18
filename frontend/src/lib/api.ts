@@ -2,7 +2,10 @@ import axios from 'axios'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api'
 
-const api = axios.create({ baseURL: BASE_URL })
+const api = axios.create({ 
+  baseURL: BASE_URL,
+  withCredentials: true
+})
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
@@ -18,17 +21,15 @@ api.interceptors.response.use(
     const original = error.config
     if (error.response?.status === 401 && !original._retry) {
       original._retry = true
-      const refresh = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null
-      if (refresh) {
-        try {
-          const { data } = await axios.post(`${BASE_URL}/auth/refresh/`, { refresh })
-          localStorage.setItem('access_token', data.access)
-          original.headers.Authorization = `Bearer ${data.access}`
-          return api(original)
-        } catch {
-          localStorage.clear()
-          window.location.href = '/login'
-        }
+      try {
+        // Send a post request with withCredentials: true to send the HttpOnly refresh cookie
+        const { data } = await axios.post(`${BASE_URL}/auth/refresh/`, {}, { withCredentials: true })
+        localStorage.setItem('access_token', data.access)
+        original.headers.Authorization = `Bearer ${data.access}`
+        return api(original)
+      } catch {
+        localStorage.clear()
+        window.location.href = '/login'
       }
     }
     return Promise.reject(error)
@@ -36,8 +37,9 @@ api.interceptors.response.use(
 )
 
 export async function googleLogin(accessToken: string) {
-  const { data } = await api.post<{ access: string; refresh: string }>('/auth/google/', { access_token: accessToken })
+  const { data } = await api.post<{ access: string }>('/auth/google/', { access_token: accessToken })
   return data
 }
 
 export default api
+
