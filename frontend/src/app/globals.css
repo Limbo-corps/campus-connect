@@ -1,26 +1,24 @@
 @import "@heroui/react/styles";
 
 @theme {
-  --font-family-sans: var(--font-dm-sans, ui-sans-serif, system-ui, sans-serif);
+    --font-family-sans: var(
+        --font-dm-sans,
+        ui-sans-serif,
+        system-ui,
+        sans-serif
+    );
 
-  /* Sharper corners — override Tailwind's radius scale (HeroUI cards consume
-     --radius-3xl too, so this sharpens cards, banners and rounded-* utilities). */
-  --radius-sm: 0.125rem;   /* 2px  (was 0.25rem) */
-  --radius-md: 0.1875rem;  /* 3px  (was 0.375rem)*/
-  --radius-lg: 0.25rem;    /* 4px  (was 0.5rem)  */
-  --radius-xl: 0.3125rem;  /* 5px  (was 0.75rem) */
-  --radius-2xl: 0.375rem;  /* 6px  (was 1rem)    */
-  --radius-3xl: 0.5rem;    /* 8px  (was 1.5rem)  */
+    /* Sharper corners — override Tailwind's radius scale */
+    --radius-sm: 0.125rem;
+    --radius-md: 0.1875rem;
+    --radius-lg: 0.25rem;
+    --radius-xl: 0.3125rem;
+    --radius-2xl: 0.375rem;
+    --radius-3xl: 0.5rem;
 }
 
-/*
- * Single-knob theming: every accent + neutral-tint colour derives its hue from
- * --app-hue. Change that one variable (the ThemePicker does, on <html>) and the
- * whole app retints. Semantic colours (success / warning / danger) keep their
- * own fixed hues per colour-theory convention.
- */
 :root {
-  --app-hue: 328.26;
+    --app-hue: 328.26;
 }
 
 :root,
@@ -28,180 +26,173 @@
 .default,
 [data-theme="light"],
 [data-theme="default"] {
-  /* ── Accent ── */
-  --accent: oklch(62.04% 0.1950 var(--app-hue));
-  --accent-foreground: oklch(99.11% 0 0);
+    /* ── Accent ── */
+    --accent: oklch(62.04% 0.195 var(--app-hue));
+    --accent-foreground: oklch(99.11% 0 0);
 
-  /* ── Base ── */
-  --background: oklch(97.02% 0.0165 var(--app-hue));
-  --foreground: oklch(21.03% 0.0165 var(--app-hue));
-  --muted: oklch(55.17% 0.0330 var(--app-hue));
-  --border: oklch(90.00% 0.0165 var(--app-hue));
+    /* ── Base ── */
+    --background: oklch(97.02% 0.0165 var(--app-hue));
+    --foreground: oklch(21.03% 0.0165 var(--app-hue));
+    --muted: oklch(55.17% 0.033 var(--app-hue));
+    --border: oklch(90% 0.0165 var(--app-hue));
 
-  /* ── Surfaces ── */
-  --surface: oklch(100.00% 0.0083 var(--app-hue));
-  --surface-foreground: oklch(21.03% 0.0165 var(--app-hue));
-  --surface-secondary: oklch(95.24% 0.0132 var(--app-hue));
-  --surface-secondary-foreground: oklch(21.03% 0.0165 var(--app-hue));
-  --surface-tertiary: oklch(93.73% 0.0132 var(--app-hue));
-  --surface-tertiary-foreground: oklch(21.03% 0.0165 var(--app-hue));
+    /* ── Surfaces ── */
+    --surface: oklch(100% 0.0083 var(--app-hue));
+    --surface-foreground: oklch(21.03% 0.0165 var(--app-hue));
+    --surface-secondary: oklch(95.24% 0.0132 var(--app-hue));
+    --surface-secondary-foreground: oklch(21.03% 0.0165 var(--app-hue));
+    --surface-tertiary: oklch(93.73% 0.0132 var(--app-hue));
+    --surface-tertiary-foreground: oklch(21.03% 0.0165 var(--app-hue));
 
-  /* ── Overlay / Dialog ── */
-  --overlay: oklch(100.00% 0.0050 var(--app-hue));
-  --overlay-foreground: oklch(21.03% 0.0165 var(--app-hue));
+    /* ── Overlay / Dialog ── */
+    --overlay: oklch(100% 0.005 var(--app-hue));
+    --overlay-foreground: oklch(21.03% 0.0165 var(--app-hue));
 
-  /* ── Fields ── */
-  --field-background: oklch(100.00% 0.0083 var(--app-hue));
-  --field-border: transparent;
-  --field-foreground: oklch(21.03% 0.0165 var(--app-hue));
-  --field-placeholder: oklch(55.17% 0.0330 var(--app-hue));
-  --focus: oklch(62.04% 0.1950 var(--app-hue));
+    /* ── Fields ── */
+    --field-background: oklch(100% 0.0083 var(--app-hue));
+    --field-border: transparent;
+    --field-foreground: oklch(21.03% 0.0165 var(--app-hue));
+    --field-placeholder: oklch(55.17% 0.033 var(--app-hue));
+    --focus: oklch(62.04% 0.195 var(--app-hue));
 
-  /* ── Semantic colours (fixed hues) ── */
-  --success: oklch(73.29% 0.1999 159.74);
-  --success-foreground: oklch(21.03% 0.0059 159.74);
-  --warning: oklch(78.19% 0.1637 81.26);
-  --warning-foreground: oklch(21.03% 0.0059 81.26);
-  --danger: oklch(65.32% 0.2405 34.67);
-  --danger-foreground: oklch(99.11% 0 0);
+    /* ── Semantic colours ── */
+    --success: oklch(73.29% 0.1999 159.74);
+    --success-foreground: oklch(21.03% 0.0059 159.74);
+    --warning: oklch(78.19% 0.1637 81.26);
+    --warning-foreground: oklch(21.03% 0.0059 81.26);
+    --danger: oklch(65.32% 0.2405 34.67);
+    --danger-foreground: oklch(99.11% 0 0);
 
-  /* ── Misc ── */
-  --default: oklch(94.00% 0.0165 var(--app-hue));
-  --default-foreground: oklch(21.03% 0.0059 var(--app-hue));
-  --separator: oklch(92.00% 0.0165 var(--app-hue));
-  --scrollbar: oklch(87.10% 0.0165 var(--app-hue));
-  --segment: oklch(100.00% 0.0165 var(--app-hue));
-  --segment-foreground: oklch(21.03% 0.0165 var(--app-hue));
+    /* ── Misc ── */
+    --default: oklch(94% 0.0165 var(--app-hue));
+    --default-foreground: oklch(21.03% 0.0059 var(--app-hue));
+    --separator: oklch(92% 0.0165 var(--app-hue));
+    --scrollbar: oklch(87.1% 0.0165 var(--app-hue));
+    --segment: oklch(100% 0.0165 var(--app-hue));
+    --segment-foreground: oklch(21.03% 0.0165 var(--app-hue));
 
-  /* ── Border radius (sharper) ── */
-  --radius: 0.25rem;
-  --field-radius: 0.3125rem;
+    /* ── App-level ── */
+    --page-bg: oklch(94.5% 0.0132 var(--app-hue));
+    --glow: oklch(62.04% 0.195 var(--app-hue) / 0.16);
+    --glow-2: oklch(62.04% 0.195 var(--app-hue) / 0.1);
+    --bg-wash: oklch(62.04% 0.195 var(--app-hue) / 0.06);
+    --pattern: oklch(45% 0.04 var(--app-hue) / 0.1);
+    --sidebar: oklch(36% 0.14 var(--app-hue));
+    --sidebar-foreground: oklch(98.5% 0.005 var(--app-hue));
 
-  /* ── Font ── */
-  --font-sans: var(--font-dm-sans, ui-sans-serif, system-ui, sans-serif);
-
-  /* ── App-level ── */
-  --page-bg: oklch(94.50% 0.0132 var(--app-hue));
-  --glow: oklch(62.04% 0.1950 var(--app-hue) / 0.16);
-  --glow-2: oklch(62.04% 0.1950 var(--app-hue) / 0.10);
-  --bg-wash: oklch(62.04% 0.1950 var(--app-hue) / 0.06);
-  --pattern: oklch(45.00% 0.0400 var(--app-hue) / 0.10);
-
-  /* ── Sidebar (its OWN solid colour, a rich saturated shade of the chosen
-        accent hue — independent of --background / --surface). ── */
-  --sidebar: oklch(36.00% 0.1400 var(--app-hue));
-  --sidebar-foreground: oklch(98.50% 0.0050 var(--app-hue));
+    /* ── HeroUI Overrides: Map explicit tokens back to system elements ── */
+    --heroui-content1: var(--surface);
+    --heroui-content2: var(--surface-secondary);
+    --heroui-content3: var(--surface-tertiary);
+    --heroui-bg-card: var(--surface);
 }
 
 .dark,
 [data-theme="dark"] {
-  color-scheme: dark;
+    color-scheme: dark;
 
-  /* ── Accent ── */
-  --accent: oklch(62.04% 0.1950 var(--app-hue));
-  --accent-foreground: oklch(99.11% 0 0);
+    /* ── Accent ── */
+    --accent: oklch(62.04% 0.195 var(--app-hue));
+    --accent-foreground: oklch(99.11% 0 0);
 
-  /* ── Base ── (never pure black — carry a tint of the chosen accent) */
-  --background: oklch(17.50% 0.0260 var(--app-hue));
-  --foreground: oklch(99.11% 0.0165 var(--app-hue));
-  --muted: oklch(70.50% 0.0330 var(--app-hue));
-  --border: oklch(28.00% 0.0165 var(--app-hue));
+    /* ── Base ── */
+    --background: oklch(17.5% 0.026 var(--app-hue));
+    --foreground: oklch(99.11% 0.0165 var(--app-hue));
+    --muted: oklch(70.5% 0.033 var(--app-hue));
+    --border: oklch(28% 0.0165 var(--app-hue));
 
-  /* ── Surfaces ── */
-  --surface: oklch(21.03% 0.0330 var(--app-hue));
-  --surface-foreground: oklch(99.11% 0.0165 var(--app-hue));
-  --surface-secondary: oklch(25.70% 0.0248 var(--app-hue));
-  --surface-secondary-foreground: oklch(99.11% 0.0165 var(--app-hue));
-  --surface-tertiary: oklch(27.21% 0.0248 var(--app-hue));
-  --surface-tertiary-foreground: oklch(99.11% 0.0165 var(--app-hue));
+    /* ── Surfaces ── */
+    --surface: oklch(21.03% 0.033 var(--app-hue));
+    --surface-foreground: oklch(99.11% 0.0165 var(--app-hue));
+    --surface-secondary: oklch(25.7% 0.0248 var(--app-hue));
+    --surface-secondary-foreground: oklch(99.11% 0.0165 var(--app-hue));
+    --surface-tertiary: oklch(27.21% 0.0248 var(--app-hue));
+    --surface-tertiary-foreground: oklch(99.11% 0.0165 var(--app-hue));
 
-  /* ── Overlay / Dialog ── */
-  --overlay: oklch(21.03% 0.0330 var(--app-hue));
-  --overlay-foreground: oklch(99.11% 0.0165 var(--app-hue));
+    /* ── Overlay / Dialog ── */
+    --overlay: oklch(21.03% 0.033 var(--app-hue));
+    --overlay-foreground: oklch(99.11% 0.0165 var(--app-hue));
 
-  /* ── Fields ── */
-  --field-background: oklch(21.03% 0.0330 var(--app-hue));
-  --field-border: transparent;
-  --field-foreground: oklch(99.11% 0.0165 var(--app-hue));
-  --field-placeholder: oklch(70.50% 0.0330 var(--app-hue));
-  --focus: oklch(62.04% 0.1950 var(--app-hue));
+    /* ── Fields ── */
+    --field-background: oklch(21.03% 0.033 var(--app-hue));
+    --field-border: transparent;
+    --field-foreground: oklch(99.11% 0.0165 var(--app-hue));
+    --field-placeholder: oklch(70.5% 0.033 var(--app-hue));
+    --focus: oklch(62.04% 0.195 var(--app-hue));
 
-  /* ── Semantic colours (fixed hues) ── */
-  --success: oklch(73.29% 0.1999 159.74);
-  --success-foreground: oklch(21.03% 0.0059 159.74);
-  --warning: oklch(82.03% 0.1434 85.27);
-  --warning-foreground: oklch(21.03% 0.0059 85.27);
-  --danger: oklch(59.40% 0.2032 33.56);
-  --danger-foreground: oklch(99.11% 0 0);
+    /* ── Semantic colours ── */
+    --success: oklch(73.29% 0.1999 159.74);
+    --success-foreground: oklch(21.03% 0.0059 159.74);
+    --warning: oklch(82.03% 0.1434 85.27);
+    --warning-foreground: oklch(21.03% 0.0059 85.27);
+    --danger: oklch(59.4% 0.2032 33.56);
+    --danger-foreground: oklch(99.11% 0 0);
 
-  /* ── Misc ── */
-  --default: oklch(27.40% 0.0165 var(--app-hue));
-  --default-foreground: oklch(99.11% 0 0);
-  --separator: oklch(25.00% 0.0165 var(--app-hue));
-  --scrollbar: oklch(70.50% 0.0165 var(--app-hue));
-  --segment: oklch(39.64% 0.0165 var(--app-hue));
-  --segment-foreground: oklch(99.11% 0.0165 var(--app-hue));
+    /* ── Misc ── */
+    --default: oklch(27.4% 0.0165 var(--app-hue));
+    --default-foreground: oklch(99.11% 0 0);
+    --separator: oklch(25% 0.0165 var(--app-hue));
+    --scrollbar: oklch(70.5% 0.0165 var(--app-hue));
+    --segment: oklch(39.64% 0.0165 var(--app-hue));
+    --segment-foreground: oklch(99.11% 0.0165 var(--app-hue));
 
-  /* ── App-level ── (tinted charcoal, not pure black) */
-  --page-bg: oklch(15.00% 0.0260 var(--app-hue));
-  --glow: oklch(62.04% 0.1950 var(--app-hue) / 0.22);
-  --glow-2: oklch(62.04% 0.1950 var(--app-hue) / 0.15);
-  --bg-wash: oklch(62.04% 0.1950 var(--app-hue) / 0.09);
-  --pattern: oklch(82.00% 0.0400 var(--app-hue) / 0.07);
+    /* ── App-level ── */
+    --page-bg: oklch(15% 0.026 var(--app-hue));
+    --glow: oklch(62.04% 0.195 var(--app-hue) / 0.22);
+    --glow-2: oklch(62.04% 0.195 var(--app-hue) / 0.15);
+    --bg-wash: oklch(62.04% 0.195 var(--app-hue) / 0.09);
+    --pattern: oklch(82% 0.04 var(--app-hue) / 0.07);
+    --sidebar: oklch(30% 0.13 var(--app-hue));
+    --sidebar-foreground: oklch(98.5% 0.005 var(--app-hue));
 
-  /* ── Sidebar (own solid colour — a deep saturated shade of the chosen hue) ── */
-  --sidebar: oklch(30.00% 0.1300 var(--app-hue));
-  --sidebar-foreground: oklch(98.50% 0.0050 var(--app-hue));
+    /* ── HeroUI Overrides: Map explicit tokens back to system elements ── */
+    --heroui-content1: var(--surface);
+    --heroui-content2: var(--surface-secondary);
+    --heroui-content3: var(--surface-tertiary);
+    --heroui-bg-card: var(--surface);
 }
 
 body {
-  background-color: var(--page-bg);
+    background-color: var(--page-bg);
+    color: var(--foreground);
 }
 
-/*
- * App backdrop — a single cohesive accent-tinted gradient that is clearly
- * distinguishable from the flat --page-bg in either theme: a soft top glow,
- * two opposing corner glows, and a faint full-canvas accent wash. The campus
- * doodle pattern rides on top of the gradient for texture/identity.
- */
 .app-backdrop,
 .auth-backdrop {
-  z-index: 0;
-  pointer-events: none;
-  background-image:
-    radial-gradient(70% 50% at 50% -8%, var(--glow), transparent 72%),
-    radial-gradient(50% 45% at 100% 2%, var(--glow-2), transparent 62%),
-    radial-gradient(55% 50% at 0% 100%, var(--glow-2), transparent 62%),
-    linear-gradient(155deg, var(--bg-wash), transparent 45%, var(--bg-wash));
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+        radial-gradient(70% 50% at 50% -8%, var(--glow), transparent 72%),
+        radial-gradient(50% 45% at 100% 2%, var(--glow-2), transparent 62%),
+        radial-gradient(55% 50% at 0% 100%, var(--glow-2), transparent 62%),
+        linear-gradient(155deg, var(--bg-wash), transparent 45%, var(--bg-wash));
 }
-/* Full-viewport, behind the whole app. */
 .app-backdrop {
-  position: fixed;
-  inset: 0;
+    position: fixed;
+    inset: 0;
 }
-/* Contained variant — fills its nearest positioned ancestor (e.g. the auth
- * form panel) so the sign-in/register side matches the in-app background. */
 .auth-backdrop {
-  position: absolute;
-  inset: 0;
+    position: absolute;
+    inset: 0;
 }
 .app-backdrop::before,
 .auth-backdrop::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-color: var(--pattern);
-  -webkit-mask: url("/campus-pattern.svg") 0 0 / 300px 300px repeat;
-  mask: url("/campus-pattern.svg") 0 0 / 300px 300px repeat;
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-color: var(--pattern);
+    -webkit-mask: url("/campus-pattern.svg") 0 0 / 300px 300px repeat;
+    mask: url("/campus-pattern.svg") 0 0 / 300px 300px repeat;
 }
 
-/*
- * The global radius scale above (sharper corners) also flattens HeroUI's
- * Switch track + thumb. Restore the pill shape just for switches so the
- * theme toggle reads as a proper rounded control.
- */
 [data-slot="control"][role="switch"],
 [role="switch"] [data-slot="control"],
 [data-slot="thumb"] {
-  border-radius: 9999px !important;
+    border-radius: 9999px !important;
+}
+
+/* Explicit fallback capture rule for legacy NextUI classes */
+.bg-content1,
+.bg-background {
+    background-color: var(--surface) !important;
 }
