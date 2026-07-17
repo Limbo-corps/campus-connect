@@ -1,5 +1,3 @@
-from django.conf.urls.static import static
-from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
 
 from chat.models import Conversation, ConversationParticipant

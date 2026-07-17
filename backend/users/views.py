@@ -1,5 +1,4 @@
 import json
-import pkgutil
 import urllib.request
 import uuid
 from typing import Any, cast
