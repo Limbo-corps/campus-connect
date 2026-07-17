@@ -42,6 +42,27 @@ class User(AbstractUser):
         related_name="followers",
     )
 
+    def is_following_user(self, other: "User") -> bool:
+        """True if this user follows ``other``."""
+        return self.following.filter(pk=other.pk).exists()
+
+    def is_mutual_with(self, other: "User") -> bool:
+        """True only when both users follow each other (DM prerequisite)."""
+        if self.pk == other.pk:
+            return False
+        return (
+            self.following.filter(pk=other.pk).exists()
+            and self.followers.filter(pk=other.pk).exists()
+        )
+
+    def mutuals(self):
+        """Users who follow this user AND are followed back by this user."""
+        return (
+            User.objects.filter(pk__in=self.following.values_list("pk", flat=True))
+            .filter(pk__in=self.followers.values_list("pk", flat=True))
+            .order_by("first_name", "username")
+        )
+
 
 class Follow(models.Model):
     follower = models.ForeignKey(

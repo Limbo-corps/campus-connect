@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type { User } from "@/types";
 import {
   Card,
@@ -29,8 +29,11 @@ import {
   Award,
   UserPlus,
   UserCheck,
+  MessageCircle,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
+import { createConversation } from "@/lib/chat/api";
 import { useCampuses } from "@/hooks/useCampuses";
 import PostCard from "@/components/posts/PostCard";
 import CreatePostModal from "@/components/posts/CreatePostModal";
@@ -59,6 +62,9 @@ export default function GlobalProfilePage() {
 
   const { user: currentUser } = useAuth();
   const { campuses } = useCampuses();
+  const router = useRouter();
+  const { upsertConversation } = useChat();
+  const [messageLoading, setMessageLoading] = useState(false);
 
   const [profileUser, setProfileUser] = useState<User | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -129,6 +135,13 @@ export default function GlobalProfilePage() {
     ? matchingFollowOverride.value
     : isFollowingFromServer;
 
+  // The viewed user's "following" list tells us whether they follow me back.
+  // Mutual (both directions) is the prerequisite for direct messaging.
+  const theyFollowMe = following.some(
+    (u: User) => String(u.id) === String(currentUser?.id),
+  );
+  const isMutual = !isOwnProfile && isFollowing && theyFollowMe;
+
   // Context-aware posts custom hook
   const {
     posts = [],
@@ -188,6 +201,20 @@ export default function GlobalProfilePage() {
       console.error("Failed to unfollow target user:", err);
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  const handleMessage = async () => {
+    if (!viewedUser?.id || !isMutual || messageLoading) return;
+    setMessageLoading(true);
+    try {
+      const conversation = await createConversation([viewedUser.id]);
+      upsertConversation(conversation);
+      router.push(`/chat/${conversation.id}`);
+    } catch (err) {
+      console.error("Failed to open direct message:", err);
+    } finally {
+      setMessageLoading(false);
     }
   };
 
@@ -336,6 +363,17 @@ export default function GlobalProfilePage() {
                     </Button>
                   ) : (
                     <>
+                      {isMutual && (
+                        <Button
+                          size="sm"
+                          onPress={handleMessage}
+                          isPending={messageLoading}
+                          className="gap-1.5 rounded-full bg-[--accent] text-xs font-semibold text-[--accent-foreground] hover:opacity-95"
+                        >
+                          <MessageCircle size={12} />
+                          Message
+                        </Button>
+                      )}
                       {isFollowing ? (
                         <Button
                           variant="secondary"

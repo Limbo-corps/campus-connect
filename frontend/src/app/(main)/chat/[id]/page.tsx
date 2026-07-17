@@ -1,232 +1,562 @@
 // app/chat/[id]/page.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams } from "next/navigation";
-import { Card } from "@heroui/react";
-import { ShieldAlert, Milestone } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Card, Spinner } from "@heroui/react";
+import { ShieldAlert } from "lucide-react";
+
+import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
+import { useMessages, type LocalMessage } from "@/hooks/useMessages";
+import * as chatApi from "@/lib/chat/api";
+import {
+  formatDayDivider,
+  otherParticipant,
+  shouldGroup,
+  userDisplayName,
+} from "@/lib/chat/format";
+import type {
+  ChatEvent,
+  Conversation,
+  ReadReceiptPayload,
+} from "@/types";
 
 import { ThreadHeader } from "@/components/chat/ThreadHeader";
 import { MessageItem } from "@/components/chat/MessageItem";
 import { MessageInput } from "@/components/chat/MessageInput";
-
-type ConversationMessage = {
-  id: string;
-  sender: "me" | "them";
-  text: string;
-  time: string;
-};
-
-const MOCK_CONVERSATION_DATA: Record<
-  string,
-  {
-    name: string;
-    role: string;
-    subtext: string;
-    messages: ConversationMessage[];
-  }
-> = {
-  "1": {
-    name: "Sarah Jenkins",
-    role: "Computer Science",
-    subtext: "Active in Presentation Slides Thread",
-    messages: [
-      {
-        id: "1",
-        sender: "them",
-        text: "Hey! Are we still meeting up today?",
-        time: "10:15 AM",
-      },
-      {
-        id: "2",
-        sender: "me",
-        text: "Yes! Preparing the class presentation slides right now.",
-        time: "10:18 AM",
-      },
-      {
-        id: "3",
-        sender: "them",
-        text: "See you at the campus coffee shop!",
-        time: "10:24 AM",
-      },
-    ],
-  },
-  "2": {
-    name: "Professor Davis",
-    role: "Software Engineering Faculty",
-    subtext: "Academic Advisor Window",
-    messages: [
-      {
-        id: "1",
-        sender: "me",
-        text: "Hello Professor, I sent you my research outline.",
-        time: "Yesterday",
-      },
-      {
-        id: "2",
-        sender: "them",
-        text: "Please review the syllabus update.",
-        time: "Yesterday",
-      },
-    ],
-  },
-  "3": {
-    name: "Study Group Alpha",
-    role: "CS Cohort Delta",
-    subtext: "6 Members Connected Online",
-    messages: [
-      {
-        id: "1",
-        sender: "them",
-        text: "Does anyone have answers to Problem Set #4?",
-        time: "Monday",
-      },
-      {
-        id: "2",
-        sender: "them",
-        text: "Who has the study guide for tomorrow?",
-        time: "Monday",
-      },
-    ],
-  },
-};
+import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import AddParticipantModal from "@/components/chat/AddParticipantModal";
+import ChatThemeModal from "@/components/chat/ChatThemeModal";
+import type { SendInput } from "@/hooks/useMessages";
+import {
+  DEFAULT_THEME,
+  getTheme,
+  onThemeChange,
+  themeLayerStyles,
+  type ChatTheme,
+} from "@/lib/chat/themes";
+import { BOT_USER, isBotCommand, runBotCommand } from "@/lib/chat/bot";
 
 export default function ChatDetailPage() {
   const params = useParams();
-  const chatId = typeof params?.id === "string" ? params.id : "1";
+  const router = useRouter();
+  const conversationId = typeof params?.id === "string" ? params.id : "";
 
-  const [inputVal, setInputVal] = useState("");
-  const [conversations, setConversations] = useState(MOCK_CONVERSATION_DATA);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { user } = useAuth();
+  const meId = user?.id ?? null;
+  const {
+    conversations,
+    isOnline,
+    typing,
+    setActiveConversation,
+    markRead,
+    sendTyping,
+    subscribe,
+    removeConversation,
+    refresh,
+  } = useChat();
 
-  const activeChatData = conversations[chatId] || {
-    name: "Unknown Channel",
-    role: "Guest Member",
-    subtext: "Unverified Identity",
-    messages: [],
-  };
+  const {
+    messages,
+    loading,
+    hasMore,
+    loadingOlder,
+    loadOlder,
+    send,
+    edit,
+    remove,
+    react,
+  } = useMessages(conversationId);
 
+  // Prefer the conversation from the live list; fall back to a direct fetch
+  // (e.g. when the page is opened via a deep link before the list loads).
+  const listConversation = conversations.find((c) => c.id === conversationId);
+  const [fetched, setFetched] = useState<Conversation | null>(null);
+  const conversation = listConversation ?? fetched;
+  const [notFound, setNotFound] = useState(false);
+
+  const [replyTo, setReplyTo] = useState<LocalMessage | null>(null);
+  const [editing, setEditing] = useState<LocalMessage | null>(null);
+  const [addPeopleOpen, setAddPeopleOpen] = useState(false);
+  const [themeOpen, setThemeOpen] = useState(false);
+  const [theme, setThemeState] = useState<ChatTheme>(DEFAULT_THEME);
+  const [botMessages, setBotMessages] = useState<LocalMessage[]>([]);
+  const [otherLastReadAt, setOtherLastReadAt] = useState<number | null>(null);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
+  const prevLenRef = useRef(0);
+
+  // Fetch the conversation if it isn't in the live list.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [activeChatData.messages.length, chatId]);
-
-  const handleSendMessage = () => {
-    if (!inputVal.trim()) return;
-
-    const newMessage: ConversationMessage = {
-      id: Date.now().toString(),
-      sender: "me",
-      text: inputVal.trim(),
-      time: new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+    if (!conversationId || listConversation) return;
+    let cancelled = false;
+    chatApi
+      .getConversation(conversationId)
+      .then((c) => !cancelled && setFetched(c))
+      .catch(() => !cancelled && setNotFound(true));
+    return () => {
+      cancelled = true;
     };
+  }, [conversationId, listConversation]);
 
-    setConversations((prev) => ({
-      ...prev,
-      [chatId]: {
-        ...prev[chatId],
-        messages: [...(prev[chatId]?.messages || []), newMessage],
-      },
-    }));
-    setInputVal("");
-  };
+  // Mark this conversation active (suppresses unread + auto-marks read).
+  useEffect(() => {
+    setActiveConversation(conversationId);
+    return () => setActiveConversation(null);
+  }, [conversationId, setActiveConversation]);
+
+  // Load the per-conversation theme and keep it in sync with live edits.
+  useEffect(() => {
+    if (!conversationId) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync theme from localStorage on conversation change
+    setThemeState(getTheme(conversationId));
+    setBotMessages([]); // ephemeral bot chatter doesn't cross conversations
+    return onThemeChange((id) => {
+      if (id === conversationId) setThemeState(getTheme(conversationId));
+    });
+  }, [conversationId]);
+
+  // Mark read once the initial history has loaded.
+  useEffect(() => {
+    if (!conversationId || loading || messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last && !last.pending) void markRead(conversationId, last.id);
+  }, [conversationId, loading, messages, markRead]);
+
+  // Seed the "other party has read" marker from the conversation snapshot.
+  useEffect(() => {
+    if (!conversation) return;
+    const others = conversation.participants_detail?.filter(
+      (p) => p.user.id !== meId,
+    );
+    const readIds = (others ?? [])
+      .map((p) => p.last_read_message)
+      .filter(Boolean) as string[];
+    if (readIds.length === 0) return;
+    // Find the newest message among those the others have read.
+    const times = messages
+      .filter((m) => readIds.includes(m.id))
+      .map((m) => new Date(m.created_at).getTime());
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- deriving read state from the loaded snapshot
+    if (times.length) setOtherLastReadAt(Math.max(...times));
+  }, [conversation, messages, meId]);
+
+  // Live read receipts from the other participant(s).
+  useEffect(() => {
+    if (!conversationId) return;
+    const off = subscribe((event: ChatEvent) => {
+      if (event.event !== "read.receipt") return;
+      const data = event.data as ReadReceiptPayload;
+      if (data.conversation !== conversationId || data.user_id === meId) return;
+      const msg = messages.find((m) => m.id === data.last_read_message);
+      if (msg) setOtherLastReadAt(new Date(msg.created_at).getTime());
+    });
+    return off;
+  }, [conversationId, subscribe, meId, messages]);
+
+  // Auto-scroll to the newest message when appropriate.
+  useEffect(() => {
+    if (loading) return;
+    const grew = messages.length > prevLenRef.current;
+    const last = messages[messages.length - 1];
+    const mine = last?.sender.id === meId;
+    const el = scrollRef.current;
+    const nearBottom = el
+      ? el.scrollHeight - el.scrollTop - el.clientHeight < 200
+      : true;
+    if (grew && (mine || nearBottom || prevLenRef.current === 0)) {
+      endRef.current?.scrollIntoView({
+        behavior: prevLenRef.current === 0 ? "auto" : "smooth",
+      });
+    }
+    prevLenRef.current = messages.length;
+  }, [messages, loading, meId]);
+
+  // Infinite scroll: load older when scrolled to the top.
+  const onScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (el && el.scrollTop < 60 && hasMore && !loadingOlder) {
+      const prevHeight = el.scrollHeight;
+      void loadOlder().then(() => {
+        // Preserve viewport position after prepending older messages.
+        requestAnimationFrame(() => {
+          if (scrollRef.current) {
+            scrollRef.current.scrollTop =
+              scrollRef.current.scrollHeight - prevHeight;
+          }
+        });
+      });
+    }
+  }, [hasMore, loadingOlder, loadOlder]);
+
+  const handleTyping = useCallback(
+    (isTyping: boolean) => sendTyping(conversationId, isTyping),
+    [sendTyping, conversationId],
+  );
+
+  const handleDelete = useCallback(
+    async (message: LocalMessage) => {
+      if (window.confirm("Delete this message?")) await remove(message.id);
+    },
+    [remove],
+  );
+
+  const handleReact = useCallback(
+    (message: LocalMessage, emoji: string) => react(message.id, emoji),
+    [react],
+  );
+
+  // Intercept CampusBot slash commands: run them locally and show ephemeral
+  // messages instead of sending to the backend.
+  const handleSend = useCallback(
+    async (input: SendInput) => {
+      const content = (input.content ?? "").trim();
+      if (!input.attachment && isBotCommand(content)) {
+        const outcome = runBotCommand(content);
+        if (outcome) {
+          const now = Date.now();
+          const shared = {
+            conversation: conversationId,
+            type: "TEXT" as const,
+            attachment_url: null,
+            reply_to: null,
+            edited_at: null,
+            deleted_at: null,
+            is_deleted: false,
+            is_edited: false,
+            reactions: [],
+            ephemeral: true,
+          };
+          const me: LocalMessage = {
+            ...shared,
+            id: `bot-echo-${now}`,
+            sender: {
+              id: user?.id ?? "me",
+              username: user?.username ?? "you",
+              first_name: user?.first_name ?? "",
+              last_name: user?.last_name ?? "",
+              avatar_url: user?.avatar_url ?? "",
+            },
+            content: outcome.echo,
+            created_at: new Date(now).toISOString(),
+          };
+          const reply: LocalMessage = {
+            ...shared,
+            id: `bot-reply-${now}`,
+            sender: BOT_USER,
+            bot: true,
+            content: outcome.reply,
+            created_at: new Date(now + 1).toISOString(),
+          };
+          setBotMessages((prev) => [...prev, me, reply]);
+          setReplyTo(null);
+          return;
+        }
+      }
+      await send(input);
+    },
+    [send, conversationId, user],
+  );
+
+  // Real messages plus ephemeral bot chatter, ordered by time.
+  const allMessages = useMemo(() => {
+    if (botMessages.length === 0) return messages;
+    return [...messages, ...botMessages].sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
+  }, [messages, botMessages]);
+
+  const themeStyles = useMemo(() => themeLayerStyles(theme), [theme]);
+  const themed = theme.id !== "default" || !!theme.image;
+
+  const handleRename = useCallback(async () => {
+    if (!conversation) return;
+    const name = window.prompt("Group name", conversation.display_name);
+    if (name && name.trim()) {
+      await chatApi.renameGroup(conversation.id, name.trim());
+    }
+  }, [conversation]);
+
+  const handleLeave = useCallback(async () => {
+    if (!conversation) return;
+    if (window.confirm("Leave this group?")) {
+      await chatApi.leaveConversation(conversation.id);
+      removeConversation(conversation.id);
+      router.push("/chat");
+    }
+  }, [conversation, removeConversation, router]);
+
+  const handleDeleteConversation = useCallback(async () => {
+    if (!conversation) return;
+    if (window.confirm("Delete this conversation for everyone?")) {
+      await chatApi.deleteConversation(conversation.id);
+      removeConversation(conversation.id);
+      router.push("/chat");
+    }
+  }, [conversation, removeConversation, router]);
+
+  // Typing indicator text for this conversation.
+  const typingText = useMemo(() => {
+    const map = typing[conversationId];
+    if (!map) return null;
+    const names = Object.values(map);
+    if (names.length === 0) return null;
+    if (names.length === 1) return `${names[0]} is typing…`;
+    return `${names.length} people are typing…`;
+  }, [typing, conversationId]);
+
+  // The last non-deleted message I sent (for the read receipt).
+  const myLastMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.sender.id === meId && !m.pending) return m.id;
+    }
+    return null;
+  }, [messages, meId]);
+
+  if (notFound) {
+    return (
+      <Card className="flex h-full flex-col items-center justify-center border border-[--surface-secondary] bg-[--surface] p-8 text-center">
+        <p className="text-sm font-semibold text-[--foreground]">
+          Conversation not found
+        </p>
+        <p className="mt-1 text-xs text-[--muted]">
+          It may have been deleted or you were removed.
+        </p>
+      </Card>
+    );
+  }
+
+  if (!conversation) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  const other = otherParticipant(conversation, meId);
 
   return (
-    <div className="grid grid-cols-9 gap-4 h-full w-full">
-      {/* ── CENTRAL MESSAGING INTERFACE (6/9 columns) ── */}
-      <main className="col-span-9 xl:col-span-6 flex flex-col h-full overflow-hidden">
-        <Card className="flex-1 flex flex-col overflow-hidden border border-[--surface-secondary] bg-[--surface] shadow-sm">
-          <ThreadHeader name={activeChatData.name} role={activeChatData.role} />
+    <div className="grid h-full w-full grid-cols-9 gap-4">
+      {/* ── CENTRAL THREAD ── */}
+      <main className="col-span-9 flex h-full flex-col overflow-hidden xl:col-span-6">
+        <Card className="flex flex-1 flex-col overflow-hidden border border-[--surface-secondary] bg-[--surface] shadow-sm">
+          <ThreadHeader
+            conversation={conversation}
+            meId={meId}
+            isOnline={isOnline}
+            typingText={typingText}
+            onRename={handleRename}
+            onAddPeople={() => setAddPeopleOpen(true)}
+            onLeave={handleLeave}
+            onDelete={handleDeleteConversation}
+            onOpenTheme={() => setThemeOpen(true)}
+          />
 
-          {/* Messages Wrapper with Smooth Entry Transitions */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 [scrollbar-width:thin]">
-            {activeChatData.messages.map((msg) => {
-              const isMe = msg.sender === "me";
-              return (
+          <div className="relative flex-1 overflow-hidden">
+            {themed && (
+              <>
                 <div
-                  key={msg.id}
-                  className="animate-in fade-in slide-in-from-bottom-1 duration-150"
-                >
-                  <MessageItem
-                    displayName={isMe ? "You" : activeChatData.name}
-                    avatarLetter={isMe ? "Y" : activeChatData.name.charAt(0)}
-                    text={msg.text}
-                    time={msg.time}
-                  />
-                </div>
-              );
-            })}
-            <div ref={messagesEndRef} />
+                  className="pointer-events-none absolute inset-0 bg-[--surface]"
+                  style={themeStyles.base}
+                />
+                <div
+                  className="pointer-events-none absolute inset-0"
+                  style={themeStyles.scrim}
+                />
+              </>
+            )}
+            <div
+              ref={scrollRef}
+              onScroll={onScroll}
+              className="absolute inset-0 overflow-y-auto px-4 py-4 [scrollbar-width:thin]"
+            >
+            {loading ? (
+              <div className="flex h-full items-center justify-center">
+                <Spinner />
+              </div>
+            ) : allMessages.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center text-center text-[--muted]">
+                <p className="text-sm font-medium">No messages yet</p>
+                <p className="text-xs">Say hi to start the conversation.</p>
+              </div>
+            ) : (
+              <>
+                {loadingOlder && (
+                  <div className="flex justify-center py-2">
+                    <Spinner size="sm" />
+                  </div>
+                )}
+                {allMessages.map((message, i) => {
+                  const prev = allMessages[i - 1];
+                  const isMe = message.sender.id === meId;
+                  const grouped = shouldGroup(prev, message);
+                  const showDivider =
+                    !prev ||
+                    new Date(prev.created_at).toDateString() !==
+                      new Date(message.created_at).toDateString();
+
+                  const isSeen =
+                    isMe &&
+                    message.id === myLastMessageId &&
+                    otherLastReadAt !== null &&
+                    otherLastReadAt >= new Date(message.created_at).getTime();
+
+                  return (
+                    <div key={message.id}>
+                      {showDivider && (
+                        <div className="my-3 flex items-center justify-center">
+                          <span className="rounded-full bg-[--surface-secondary] px-3 py-0.5 text-[10px] font-medium text-[--muted]">
+                            {formatDayDivider(message.created_at)}
+                          </span>
+                        </div>
+                      )}
+                      <MessageItem
+                        message={message}
+                        isMe={isMe}
+                        isGroup={conversation.is_group}
+                        showHeader={!grouped || showDivider}
+                        meId={user?.id}
+                        onReply={setReplyTo}
+                        onEdit={setEditing}
+                        onDelete={handleDelete}
+                        onReact={handleReact}
+                      />
+                      {isSeen && (
+                        <p className="mt-0.5 pr-1 text-right text-[10px] font-medium text-[--accent]">
+                          Seen
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+                <div ref={endRef} />
+              </>
+            )}
+            </div>
           </div>
 
           <MessageInput
-            value={inputVal}
-            placeholderName={activeChatData.name}
-            onChange={setInputVal}
-            onSubmit={handleSendMessage}
+            onSend={handleSend}
+            onTyping={handleTyping}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(null)}
+            editing={editing}
+            onSaveEdit={async (content) => {
+              if (editing) await edit(editing.id, content);
+              setEditing(null);
+            }}
+            onCancelEdit={() => setEditing(null)}
+            placeholder={
+              conversation.is_group
+                ? `Message ${conversation.display_name}`
+                : `Message ${userDisplayName(other)}`
+            }
           />
         </Card>
       </main>
 
-      {/* ── RIGHT RAIL: CHAT ROOM METADATA BENTO (3/9 columns) ── */}
-      <aside className="hidden xl:flex flex-col col-span-3 h-full overflow-hidden">
-        <div className="sticky top-0 space-y-3 w-full">
-          {/* Profile Details Card */}
-          <Card className="border border-[--surface-secondary] bg-[--surface] shadow-sm p-4 text-center flex flex-col items-center">
-            <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-[--accent] to-fuchsia-500 text-md font-bold text-white shadow-md">
-              {activeChatData.name.charAt(0)}
-            </div>
+      {/* ── RIGHT RAIL: DETAILS ── */}
+      <aside className="col-span-3 hidden h-full flex-col overflow-hidden xl:flex">
+        <div className="sticky top-0 space-y-3">
+          <Card className="flex flex-col items-center border border-[--surface-secondary] bg-[--surface] p-4 text-center shadow-sm">
+            <ChatAvatar
+              name={
+                conversation.is_group
+                  ? conversation.display_name
+                  : userDisplayName(other)
+              }
+              avatarUrl={
+                conversation.is_group
+                  ? conversation.image_url
+                  : other?.avatar_url
+              }
+              isGroup={conversation.is_group}
+              online={
+                conversation.is_group ? undefined : isOnline(other?.id)
+              }
+              size="lg"
+              className="mb-3"
+            />
             <h3 className="text-sm font-bold text-[--foreground]">
-              {activeChatData.name}
+              {conversation.is_group
+                ? conversation.display_name
+                : userDisplayName(other)}
             </h3>
-            <p className="text-[11px] font-medium text-[--accent] mt-0.5">
-              {activeChatData.role}
-            </p>
-            <p className="text-[10px] text-[--muted] mt-2 bg-[--surface-secondary] px-2.5 py-1 rounded-full border border-[--surface-secondary]">
-              {activeChatData.subtext}
+            {!conversation.is_group && (
+              <p className="mt-0.5 text-[11px] font-medium text-[--accent]">
+                @{other?.username}
+              </p>
+            )}
+            <p className="mt-2 rounded-full border border-[--surface-secondary] bg-[--surface-secondary] px-2.5 py-1 text-[10px] text-[--muted]">
+              {conversation.is_group
+                ? `${conversation.participants_detail?.length ?? 0} members`
+                : isOnline(other?.id)
+                  ? "Active now"
+                  : "Offline"}
             </p>
           </Card>
 
-          {/* Contextual Workspace Metrics */}
-          <Card className="border border-[--surface-secondary] bg-[--surface] shadow-sm p-3">
-            <p className="px-1 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[--muted] flex items-center gap-1.5 mb-2">
-              <Milestone size={11} className="text-[--accent]" />
-              Channel Diagnostics
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-[--surface-secondary] p-2.5 border border-[--surface-secondary]/40">
-                <p className="text-md font-bold leading-none text-[--foreground]">
-                  {activeChatData.messages.length}
-                </p>
-                <p className="mt-1 text-[9px] text-[--muted]">total logs</p>
+          {conversation.is_group && (
+            <Card className="border border-[--surface-secondary] bg-[--surface] p-3 shadow-sm">
+              <p className="mb-2 px-1 text-[9px] font-bold uppercase tracking-wider text-[--muted]">
+                Members
+              </p>
+              <div className="space-y-1.5">
+                {conversation.participants_detail?.map((p) => (
+                  <div key={p.user.id} className="flex items-center gap-2">
+                    <ChatAvatar
+                      name={userDisplayName(p.user)}
+                      avatarUrl={p.user.avatar_url}
+                      online={isOnline(p.user.id)}
+                      size="sm"
+                    />
+                    <span className="flex-1 truncate text-xs text-[--foreground]">
+                      {userDisplayName(p.user)}
+                      {p.user.id === meId && " (you)"}
+                    </span>
+                    {p.is_admin && (
+                      <span className="text-[9px] font-semibold text-[--accent]">
+                        admin
+                      </span>
+                    )}
+                  </div>
+                ))}
               </div>
-              <div className="rounded-xl bg-[--surface-secondary] p-2.5 border border-[--surface-secondary]/40 flex flex-col justify-between">
-                <p className="text-md font-bold leading-none text-green-500 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                  Secure
-                </p>
-                <p className="mt-1 text-[9px] text-[--muted]">connection</p>
-              </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
-          {/* Safety Notice Block */}
-          <Card className="border border-amber-500/10 bg-amber-500/5 dark:bg-amber-500/5 shadow-none p-3.5 rounded-xl flex flex-row gap-3 items-start">
-            <ShieldAlert size={16} className="text-amber-500 shrink-0 mt-0.5" />
+          <Card className="flex flex-row items-start gap-3 rounded-xl border border-amber-500/10 bg-amber-500/5 p-3.5 shadow-none">
+            <ShieldAlert size={16} className="mt-0.5 shrink-0 text-amber-500" />
             <div className="min-w-0">
               <h4 className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                Campus Guideline Memo
+                Stay safe
               </h4>
-              <p className="text-[10px] leading-normal text-[--muted] mt-1">
-                Keep project code distributions compliant with campus
-                guidelines. Review course policy before sharing exam materials.
+              <p className="mt-1 text-[10px] leading-normal text-[--muted]">
+                Be respectful and follow campus community guidelines. Never
+                share passwords or personal financial details.
               </p>
             </div>
           </Card>
         </div>
       </aside>
+
+      <AddParticipantModal
+        isOpen={addPeopleOpen}
+        onOpenChange={setAddPeopleOpen}
+        conversation={conversation}
+        onAdded={() => void refresh()}
+      />
+
+      <ChatThemeModal
+        conversationId={conversationId}
+        isOpen={themeOpen}
+        onOpenChange={setThemeOpen}
+      />
     </div>
   );
 }

@@ -32,6 +32,7 @@ class BaseUserSerializer(serializers.ModelSerializer):
     followers_count = serializers.SerializerMethodField()
     following_count = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
+    is_mutual = serializers.SerializerMethodField()
 
     def get_followers_count(self, obj):
         return obj.followers.count()
@@ -46,6 +47,15 @@ class BaseUserSerializer(serializers.ModelSerializer):
             return False
 
         return request.user.following.filter(pk=obj.pk).exists()
+
+    def get_is_mutual(self, obj):
+        """Whether the requester and this user follow each other (can DM)."""
+        request = self.context.get("request")
+
+        if request is None or request.user.is_anonymous or request.user == obj:
+            return False
+
+        return request.user.is_mutual_with(obj)
 
 
 class UserSerializer(BaseUserSerializer):
@@ -65,6 +75,7 @@ class UserSerializer(BaseUserSerializer):
             "followers_count",
             "following_count",
             "is_following",
+            "is_mutual",
         ]
 
 
@@ -84,6 +95,7 @@ class PublicUserSerializer(BaseUserSerializer):
             "followers_count",
             "following_count",
             "is_following",
+            "is_mutual",
         ]
 
 

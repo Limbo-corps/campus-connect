@@ -11,6 +11,7 @@ from chat.models import (
     Conversation,
     ConversationParticipant,
     Message,
+    MessageReaction,
 )
 
 User = get_user_model()
@@ -106,6 +107,42 @@ class MessageService:
         )
 
         return message
+
+    @staticmethod
+    @transaction.atomic
+    def toggle_reaction(
+        message: Message,
+        user: User,
+        emoji: str,
+    ) -> bool:
+        """Add the reaction if absent, remove it if already present.
+
+        The user must be a participant of the message's conversation.
+        Returns True when the reaction was added, False when removed.
+        """
+        if not MessageService.can_send_message(message.conversation, user):
+            raise UserNotConversationParticipant()
+
+        emoji = (emoji or "").strip()
+        if not emoji:
+            raise EmptyMessage()
+
+        existing = MessageReaction.objects.filter(
+            message=message,
+            user=user,
+            emoji=emoji,
+        ).first()
+
+        if existing is not None:
+            existing.delete()
+            return False
+
+        MessageReaction.objects.create(
+            message=message,
+            user=user,
+            emoji=emoji,
+        )
+        return True
 
     @staticmethod
     @transaction.atomic

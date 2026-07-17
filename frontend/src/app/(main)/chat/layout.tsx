@@ -2,86 +2,64 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Card, Button } from "@heroui/react";
 import { Plus, Search, MessageSquare } from "lucide-react";
 
-import { ChatAvatar } from "@/components/chat/ChatAvatar";
+import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
+import {
+  messagePreview,
+  otherParticipant,
+  userDisplayName,
+} from "@/lib/chat/format";
+import { ChatListItem } from "@/components/chat/ChatListItem";
 import { ProfileDeck } from "@/components/chat/ProfileDeck";
-import AddDirectMessageModal from "@/components/chat/AddDirectMessageModal"; // Import here
-
-const MOCK_CHATS = [
-  {
-    id: "1",
-    name: "Sarah Jenkins",
-    lastMsg: "See you at the campus coffee shop!",
-    time: "10:24 AM",
-    unread: 2,
-    online: true,
-    role: "Classmate",
-  },
-  {
-    id: "2",
-    name: "Professor Davis",
-    lastMsg: "Please review the syllabus update.",
-    time: "Yesterday",
-    unread: 0,
-    online: false,
-    role: "Faculty",
-  },
-  {
-    id: "3",
-    name: "Study Group Alpha",
-    lastMsg: "Who has the study guide for tomorrow?",
-    time: "Monday",
-    unread: 5,
-    online: true,
-    role: "Group chat",
-  },
-];
+import AddDirectMessageModal from "@/components/chat/AddDirectMessageModal";
+import type { Conversation } from "@/types";
 
 export default function ChatLayout({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [chats, setChats] = useState(MOCK_CHATS);
 
+  const router = useRouter();
   const params = useParams();
   const activeChatId = typeof params?.id === "string" ? params.id : "";
 
+  const { user } = useAuth();
+  const meId = user?.id ?? null;
+  const { conversations, loading, isOnline, upsertConversation } = useChat();
+
   const filteredChats = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return chats;
-    return chats.filter(
-      (chat) =>
-        chat.name.toLowerCase().includes(q) ||
-        chat.lastMsg.toLowerCase().includes(q) ||
-        chat.role.toLowerCase().includes(q),
-    );
-  }, [query, chats]);
+    if (!q) return conversations;
+    return conversations.filter((c) => {
+      const name = c.is_group
+        ? c.display_name
+        : userDisplayName(otherParticipant(c, meId));
+      const preview = messagePreview(c.last_message);
+      return (
+        name.toLowerCase().includes(q) || preview.toLowerCase().includes(q)
+      );
+    });
+  }, [query, conversations, meId]);
 
-  const handleAddChat = (name: string, role: string) => {
-    const newChat = {
-      id: (chats.length + 1).toString(),
-      name,
-      lastMsg: "Channel created. Start the conversation!",
-      time: "11:08 PM",
-      unread: 0,
-      online: true,
-      role,
-    };
-    setChats([newChat, ...chats]);
+  const handleCreated = (conversation: Conversation) => {
+    upsertConversation(conversation);
+    router.push(`/chat/${conversation.id}`);
   };
 
   return (
-    <div className="flex lg:grid lg:grid-cols-12 gap-4 h-full w-full max-w-[1600px] mx-auto p-4 animate-in fade-in duration-300 relative">
+    <div className="relative mx-auto flex h-full w-full max-w-[1600px] animate-in fade-in gap-4 p-4 duration-300 lg:grid lg:grid-cols-12">
       {/* ── LEFT RAIL: CONVERSATIONS PANEL ── */}
       <aside
-        className={`col-span-12 lg:col-span-4 xl:col-span-3 flex flex-col h-full overflow-hidden ${activeChatId ? "hidden lg:flex" : "flex w-full lg:w-auto"}`}
+        className={`col-span-12 flex h-full flex-col overflow-hidden lg:col-span-4 xl:col-span-3 ${
+          activeChatId ? "hidden lg:flex" : "flex w-full lg:w-auto"
+        }`}
       >
-        <Card className="flex-1 flex flex-col overflow-hidden border border-[--surface-secondary] bg-[--surface]/80 backdrop-blur-md shadow-sm p-3.5 gap-3.5">
+        <Card className="flex flex-1 flex-col gap-3.5 overflow-hidden border border-[--surface-secondary] bg-[--surface]/80 p-3.5 shadow-sm backdrop-blur-md">
           <div className="flex items-center justify-between px-0.5">
-            <h2 className="text-sm font-bold tracking-tight text-[--foreground] flex items-center gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-bold tracking-tight text-[--foreground]">
               <MessageSquare size={16} className="text-[--accent]" />
               Direct Messages
             </h2>
@@ -90,7 +68,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
               size="sm"
               variant="ghost"
               onClick={() => setIsModalOpen(true)}
-              className="bg-[--accent]/10 text-[--accent] rounded-xl hover:bg-[--accent]/20 transition-all border-none"
+              className="rounded-xl border-none bg-[--accent]/10 text-[--accent] transition-all hover:bg-[--accent]/20"
               aria-label="New Message"
             >
               <Plus size={16} />
@@ -100,83 +78,75 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
           <label className="flex items-center gap-2 rounded-2xl border border-[--surface-secondary] bg-transparent px-3 py-2 focus-within:border-[--accent]/50">
             <Search size={14} className="text-[--muted]" />
             <input
-              placeholder="Search channels..."
+              placeholder="Search conversations..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className="w-full bg-transparent text-sm text-[--foreground] outline-none placeholder:text-[--muted]"
             />
           </label>
 
-          <hr className="border-[--surface-secondary] opacity-60 my-0.5" />
+          <hr className="my-0.5 border-[--surface-secondary] opacity-60" />
 
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-0.5 [scrollbar-width:thin] [scrollbar-color:var(--scrollbar)_transparent]">
-            {filteredChats.map((chat) => {
-              const isActive = chat.id === activeChatId;
-              const hasUnread = chat.unread > 0;
-
-              return (
-                <Link
-                  href={`/chat/${chat.id}`}
-                  key={chat.id}
-                  className={`flex items-center gap-3 p-3 rounded-xl transition-all border ${
-                    isActive
-                      ? "bg-[--accent]/10 border-[--accent]/20 text-[--foreground] shadow-xs"
-                      : "bg-transparent border-transparent hover:bg-[--surface-secondary]/40 text-[--foreground]/80"
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    <ChatAvatar name={chat.name} online={chat.online} />
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[--surface] ${chat.online ? "bg-emerald-500" : "bg-[--surface-secondary]"}`}
-                    />
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-baseline justify-between gap-1">
-                      <p
-                        className={`text-xs truncate ${hasUnread && !isActive ? "font-bold text-[--foreground]" : "font-semibold"}`}
-                      >
-                        {chat.name}
-                      </p>
-                      <span className="text-[9px] text-[--muted] shrink-0">
-                        {chat.time}
-                      </span>
+          <div className="flex-1 space-y-1.5 overflow-y-auto pr-0.5 [scrollbar-color:var(--scrollbar)_transparent] [scrollbar-width:thin]">
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 rounded-xl p-3"
+                  >
+                    <div className="h-10 w-10 animate-pulse rounded-full bg-[--surface-secondary]" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-2/3 animate-pulse rounded bg-[--surface-secondary]" />
+                      <div className="h-2.5 w-1/2 animate-pulse rounded bg-[--surface-secondary]" />
                     </div>
-                    <p
-                      className={`text-[11px] truncate mt-0.5 ${hasUnread && !isActive ? "text-[--foreground] font-medium" : "text-[--muted]"}`}
-                    >
-                      {chat.lastMsg}
-                    </p>
                   </div>
-
-                  {hasUnread && !isActive && (
-                    <span className="h-4 min-w-4 px-1 rounded-md bg-[--accent] text-[9px] font-bold text-[--accent-foreground] flex items-center justify-center shrink-0 shadow-xs">
-                      {chat.unread}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+                ))}
+              </div>
+            ) : filteredChats.length === 0 ? (
+              <div className="flex flex-col items-center justify-center px-4 py-12 text-center">
+                <MessageSquare size={28} className="mb-2 text-[--muted]" />
+                <p className="text-sm font-semibold text-[--foreground]">
+                  {query ? "No matches" : "No conversations yet"}
+                </p>
+                <p className="mt-1 text-xs text-[--muted]">
+                  {query
+                    ? "Try a different search."
+                    : "Start a new message to get chatting."}
+                </p>
+              </div>
+            ) : (
+              filteredChats.map((conversation) => (
+                <ChatListItem
+                  key={conversation.id}
+                  conversation={conversation}
+                  active={conversation.id === activeChatId}
+                  meId={meId}
+                  isOnline={isOnline}
+                />
+              ))
+            )}
           </div>
 
-          <div className="mt-auto pt-2.5 border-t border-[--surface-secondary]">
+          <div className="mt-auto border-t border-[--surface-secondary] pt-2.5">
             <ProfileDeck />
           </div>
         </Card>
       </aside>
 
-      {/* ── RIGHT MATRIX ── */}
+      {/* ── RIGHT: ACTIVE THREAD ── */}
       <div
-        className={`col-span-12 lg:col-span-8 xl:col-span-9 h-full overflow-hidden bg-transparent ${!activeChatId ? "hidden lg:block" : "block w-full lg:w-auto"}`}
+        className={`col-span-12 h-full overflow-hidden bg-transparent lg:col-span-8 xl:col-span-9 ${
+          !activeChatId ? "hidden lg:block" : "block w-full lg:w-auto"
+        }`}
       >
         {children}
       </div>
 
-      {/* Modern Refactored Direct Message Modular Dialog Hook */}
       <AddDirectMessageModal
         isOpen={isModalOpen}
         onOpenChange={setIsModalOpen}
-        onAddChat={handleAddChat}
+        onCreated={handleCreated}
       />
     </div>
   );

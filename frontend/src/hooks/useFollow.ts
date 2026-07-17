@@ -49,6 +49,28 @@ export function useFollowing(userId: string | undefined | null) {
   };
 }
 
+// Plain user-collection fetcher (endpoints that return User[] directly).
+const plainUsersFetcher = (url: string) =>
+  api.get<User[]>(url).then((r) => r.data);
+
+/**
+ * Hook to fetch the current user's mutuals — people who follow them back.
+ * These are exactly the users they're allowed to start a direct message with.
+ */
+export function useMutuals() {
+  const { data, error, mutate, isLoading } = useSWR<User[]>(
+    "/users/me/mutuals/",
+    plainUsersFetcher,
+  );
+
+  return {
+    mutuals: data ?? [],
+    loading: isLoading,
+    error,
+    mutate,
+  };
+}
+
 /**
  * Follows a target user.
  */

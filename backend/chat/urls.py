@@ -1,0 +1,60 @@
+from django.urls import path
+
+from chat.views import (
+    ConversationDetailView,
+    ConversationListCreateView,
+    LeaveConversationView,
+    MarkReadView,
+    MessageDetailView,
+    MessagesView,
+    ParticipantsView,
+    ReactionsView,
+)
+
+urlpatterns = [
+    path(
+        "conversations/",
+        ConversationListCreateView.as_view(),
+        name="conversation-list-create",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/",
+        ConversationDetailView.as_view(),
+        name="conversation-detail",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/leave/",
+        LeaveConversationView.as_view(),
+        name="conversation-leave",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/participants/",
+        ParticipantsView.as_view(),
+        name="conversation-participants",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/participants/<uuid:user_id>/",
+        ParticipantsView.as_view(),
+        name="conversation-participant-detail",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/messages/",
+        MessagesView.as_view(),
+        name="conversation-messages",
+    ),
+    path(
+        "conversations/<uuid:conversation_id>/read/",
+        MarkReadView.as_view(),
+        name="conversation-read",
+    ),
+    path(
+        "messages/<uuid:message_id>/",
+        MessageDetailView.as_view(),
+        name="message-detail",
+    ),
+    path(
+        "messages/<uuid:message_id>/reactions/",
+        ReactionsView.as_view(),
+        name="message-reactions",
+    ),
+]

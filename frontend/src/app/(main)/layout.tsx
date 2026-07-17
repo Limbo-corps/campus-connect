@@ -10,6 +10,7 @@ import ScrollDock from "@/components/layout/ScrollDock";
 import { LogoMark } from "@/components/Logo";
 import { useAuth } from "@/contexts/AuthContext";
 import { DialogsProvider } from "@/contexts/DialogsContext";
+import { ChatProvider } from "@/contexts/ChatContext";
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -44,6 +45,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
 
   return (
     <DialogsProvider>
+      <ChatProvider>
       {/* Changing from "min-h-screen" to "h-screen" on chat routes
         fully prevents container extension and locks viewport scroll leaks.
       */}
@@ -105,6 +107,7 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         <ScrollDock />
         <Toast.Provider placement="top" />
       </div>
+      </ChatProvider>
     </DialogsProvider>
   );
 }

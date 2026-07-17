@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialogs } from "@/contexts/DialogsContext";
+import { useChat } from "@/contexts/ChatContext";
 import { usePosts } from "@/hooks/usePosts";
 import { useCampuses } from "@/hooks/useCampuses";
 import { LogoMark } from "@/components/Logo";
@@ -43,6 +44,7 @@ export default function AppSidebar({
   const { user, logout } = useAuth();
   const { posts } = usePosts();
   const { campuses } = useCampuses();
+  const { totalUnread } = useChat();
   const { openAbout, openHelp } = useDialogs();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
@@ -66,7 +68,7 @@ export default function AppSidebar({
       href: "/chat",
       icon: MessageSquare,
       label: "Messages",
-      badge: 7, // Replace with dynamic unread message counts when real state is integrated
+      badge: totalUnread,
     },
     {
       href: "/campus",

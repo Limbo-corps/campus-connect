@@ -1,33 +1,33 @@
-// components/chat/AddDirectMessageModal.tsx
 "use client";
 
 import React, { useState, useMemo } from "react";
-import type { User } from "@/types";
-import { Modal, Avatar, Button, Skeleton } from "@heroui/react";
+import type { Conversation, User } from "@/types";
+import { Modal, Avatar, Button, Skeleton, Spinner } from "@heroui/react";
 import { UserPlus, Users, Check, X, Search } from "lucide-react";
-import { useAuth } from "@/contexts/AuthContext";
-import { useFollowing } from "@/hooks/useFollow";
+import { useMutuals } from "@/hooks/useFollow";
+import { createConversation } from "@/lib/chat/api";
 
 interface AddDirectMessageModalProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onAddChat: (name: string, role: string) => void;
+  /** Called with the created (or reused) conversation. */
+  onCreated: (conversation: Conversation) => void;
 }
 
 export default function AddDirectMessageModal({
   isOpen,
   onOpenChange,
-  onAddChat,
+  onCreated,
 }: AddDirectMessageModalProps) {
-  const { user: currentUser } = useAuth();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
   const [groupName, setGroupName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Fetch the list of users that the current user is following
-  const { following, loading } = useFollowing(currentUser?.id);
+  // You can only DM / group people who follow you back (mutuals).
+  const { mutuals, loading } = useMutuals();
 
-  // Helper selector function to compute clean display names from system fields
   const getUserDisplayName = (user: User) => {
     if (user.first_name || user.last_name) {
       return `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
@@ -35,16 +35,15 @@ export default function AddDirectMessageModal({
     return user.username;
   };
 
-  // Perform search text query filtering over users matching names and handles
   const filteredUsers = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return following;
-    return following.filter((user) => {
+    if (!query) return mutuals;
+    return mutuals.filter((user) => {
       const fullName = getUserDisplayName(user).toLowerCase();
       const userName = user.username.toLowerCase();
       return fullName.includes(query) || userName.includes(query);
     });
-  }, [searchQuery, following]);
+  }, [searchQuery, mutuals]);
 
   const toggleUserSelection = (user: User) => {
     setSelectedUsers((prev) =>
@@ -54,29 +53,35 @@ export default function AddDirectMessageModal({
     );
   };
 
-  const handleActionSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedUsers.length === 0) return;
+  const isGroupMode = selectedUsers.length > 1;
 
-    if (selectedUsers.length === 1) {
-      // Single Direct Message Selection Action
-      onAddChat(getUserDisplayName(selectedUsers[0]), "Classmate");
-    } else {
-      // Group Direct Message Thread Construction Action
-      const explicitName =
-        groupName.trim() ||
-        `Group: ${selectedUsers.map(getUserDisplayName).join(", ")}`;
-      onAddChat(explicitName, "Group chat");
-    }
-
-    // Reset layout fields state values
+  const resetAndClose = () => {
     setSelectedUsers([]);
     setGroupName("");
     setSearchQuery("");
+    setError(null);
     onOpenChange(false);
   };
 
-  const isGroupMode = selectedUsers.length > 1;
+  const handleActionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedUsers.length === 0 || submitting) return;
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const conversation = await createConversation(
+        selectedUsers.map((u) => u.id),
+        isGroupMode ? groupName.trim() || undefined : undefined,
+      );
+      onCreated(conversation);
+      resetAndClose();
+    } catch {
+      setError("Could not start the conversation. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -100,7 +105,6 @@ export default function AddDirectMessageModal({
 
             <form onSubmit={handleActionSubmit}>
               <Modal.Body className="px-5 py-2 space-y-3">
-                {/* ── Group Name Input (Only shows when multiple profiles are selected) ── */}
                 {isGroupMode && (
                   <div className="space-y-1 animate-in slide-in-from-top-2 duration-200">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-[--muted]">
@@ -115,12 +119,11 @@ export default function AddDirectMessageModal({
                   </div>
                 )}
 
-                {/* ── Search Input Bar ── */}
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-2 rounded-2xl border border-[--surface-secondary] bg-transparent px-3 py-2 focus-within:border-[--accent]/50">
                     <Search size={14} className="text-[--muted]" />
                     <input
-                      placeholder="Search people you follow..."
+                      placeholder="Search people who follow you back..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="w-full bg-transparent text-sm text-[--foreground] outline-none placeholder:text-[--muted]"
@@ -128,26 +131,25 @@ export default function AddDirectMessageModal({
                   </label>
                 </div>
 
-                {/* ── Instagram Selection Pill Badges Tray ── */}
                 {selectedUsers.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 p-1.5 bg-[--surface-secondary]/20 border border-[--surface-secondary]/50 rounded-xl max-h-20 overflow-y-auto">
                     {selectedUsers.map((user) => (
-                      <div
+                      <button
+                        type="button"
                         key={user.id}
                         onClick={() => toggleUserSelection(user)}
                         className="flex items-center gap-1 bg-[--accent]/10 hover:bg-[--accent]/20 border border-[--accent]/20 text-[--foreground] font-semibold text-[10px] px-2 py-0.5 rounded-lg cursor-pointer transition-colors"
                       >
                         <span>{getUserDisplayName(user)}</span>
                         <X size={10} className="text-[--accent]" />
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
 
-                {/* ── Followed Network Selection List Stream ── */}
                 <div className="flex flex-col gap-2 h-auto max-h-64 overflow-y-auto overflow-x-hidden pr-1 [scrollbar-width:thin]">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-[--muted] block px-1 mt-1">
-                    Suggested Accounts
+                    Mutual Follows
                   </label>
 
                   {loading ? (
@@ -168,7 +170,8 @@ export default function AddDirectMessageModal({
                     ))
                   ) : filteredUsers.length === 0 ? (
                     <div className="text-center text-xs text-[--muted] py-8">
-                      No matching followed accounts found.
+                      No mutual follows yet. When you and a classmate follow each
+                      other, they&apos;ll show up here so you can chat.
                     </div>
                   ) : (
                     filteredUsers.map((user) => {
@@ -191,7 +194,6 @@ export default function AddDirectMessageModal({
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            {/* Verified Working Avatar Structure implementation */}
                             <Avatar
                               size="sm"
                               color="accent"
@@ -219,7 +221,6 @@ export default function AddDirectMessageModal({
                             </div>
                           </div>
 
-                          {/* Instagram Selection Circular Indicator */}
                           <div
                             className={`w-4 h-4 rounded-full border flex items-center justify-center transition-all shrink-0 ${
                               isSelected
@@ -234,6 +235,12 @@ export default function AddDirectMessageModal({
                     })
                   )}
                 </div>
+
+                {error && (
+                  <p className="text-center text-xs font-medium text-danger">
+                    {error}
+                  </p>
+                )}
               </Modal.Body>
 
               <Modal.Footer className="border-t border-[--surface-secondary] pt-3 pb-4 flex justify-end gap-2 px-5">
@@ -248,14 +255,20 @@ export default function AddDirectMessageModal({
                 <Button
                   size="sm"
                   type="submit"
-                  isDisabled={selectedUsers.length === 0}
+                  isDisabled={selectedUsers.length === 0 || submitting}
                   className={`rounded-xl text-xs font-bold transition-all ${
                     selectedUsers.length > 0
                       ? "bg-[--accent] text-[--accent-foreground] hover:opacity-95"
                       : "bg-[--surface-secondary] text-[--muted] cursor-not-allowed"
                   }`}
                 >
-                  {isGroupMode ? "Create Group" : "Chat Now"}
+                  {submitting ? (
+                    <Spinner size="sm" />
+                  ) : isGroupMode ? (
+                    "Create Group"
+                  ) : (
+                    "Chat Now"
+                  )}
                 </Button>
               </Modal.Footer>
             </form>
