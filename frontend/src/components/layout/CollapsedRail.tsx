@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { Avatar } from '@heroui/react'
-import { Rss, Building2, User, LogOut, Sun, Moon, PanelLeftOpen } from 'lucide-react'
+import { Rss, Building2, User, LogOut, Sun, Moon, PanelLeftOpen, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useChat } from '@/contexts/ChatContext'
 import NotificationsBell from '@/components/layout/NotificationsBell'
 import ThemePicker from '@/components/layout/ThemePicker'
 
@@ -17,6 +18,7 @@ import ThemePicker from '@/components/layout/ThemePicker'
  */
 export default function CollapsedRail({ onExpand }: { onExpand: () => void }) {
   const { user, logout } = useAuth()
+  const { totalUnread } = useChat()
   const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const isDark = theme === 'dark'
@@ -26,9 +28,10 @@ export default function CollapsedRail({ onExpand }: { onExpand: () => void }) {
     : '?'
 
   const NAV = [
-    { href: '/feed', icon: Rss, label: 'Feed' },
-    { href: '/campus', icon: Building2, label: 'Campuses' },
-    { href: '/profile', icon: User, label: 'Profile' },
+    { href: '/feed', icon: Rss, label: 'Feed', badge: 0 },
+    { href: '/chat', icon: MessageSquare, label: 'Messages', badge: totalUnread },
+    { href: '/campus', icon: Building2, label: 'Campuses', badge: 0 },
+    { href: '/profile', icon: User, label: 'Profile', badge: 0 },
   ]
 
   return (
@@ -58,13 +61,13 @@ export default function CollapsedRail({ onExpand }: { onExpand: () => void }) {
       <div className="my-1 h-px w-8 bg-white/15" />
 
       {/* Nav icons */}
-      {NAV.map(({ href, icon: Icon, label }) => {
+      {NAV.map(({ href, icon: Icon, label, badge }) => {
         const active = href === '/feed' ? pathname === '/feed' : pathname.startsWith(href)
         return (
           <Link
             key={href}
             href={href}
-            title={label}
+            title={badge > 0 ? `${label} (${badge})` : label}
             aria-label={label}
             className={`relative flex h-10 w-10 items-center justify-center rounded-xl transition-colors ${
               active ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'
@@ -72,6 +75,11 @@ export default function CollapsedRail({ onExpand }: { onExpand: () => void }) {
           >
             {active && <span className="absolute left-0 h-5 w-1 rounded-r-full bg-white" />}
             <Icon size={19} strokeWidth={active ? 2.4 : 1.9} />
+            {badge > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[9px] font-bold text-[--accent] shadow">
+                {badge > 9 ? '9+' : badge}
+              </span>
+            )}
           </Link>
         )
       })}

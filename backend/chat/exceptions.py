@@ -35,6 +35,10 @@ class CannotMessageYourself(ChatException):
     default_message = "You cannot message yourself."
 
 
+class NotMutualFollowers(ChatException):
+    default_message = "You can only message people who follow you back."
+
+
 class AlreadyConversationParticipant(ChatException):
     default_message = "User is already a participant."
 

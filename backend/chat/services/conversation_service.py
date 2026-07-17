@@ -5,6 +5,7 @@ from chat.exceptions import (
     AlreadyConversationParticipant,
     CannotMessageYourself,
     InvalidConversation,
+    NotMutualFollowers,
 )
 from chat.models import Conversation, ConversationParticipant
 from chat.selectors.conversation_selector import ConversationSelector
@@ -41,6 +42,10 @@ class ConversationService:
         if len(unique_participants) == 0:
             raise CannotMessageYourself()
 
+        # You may only open a conversation with people who follow you back.
+        if any(not creator.is_mutual_with(p) for p in unique_participants):
+            raise NotMutualFollowers()
+
         if len(unique_participants) == 1:
             return ConversationService.create_direct_conversation(
                 creator=creator,
@@ -61,6 +66,9 @@ class ConversationService:
     ) -> Conversation:
         if creator == other_user:
             raise CannotMessageYourself()
+
+        if not creator.is_mutual_with(other_user):
+            raise NotMutualFollowers()
 
         existing = ConversationSelector.get_direct_conversation(
             creator,

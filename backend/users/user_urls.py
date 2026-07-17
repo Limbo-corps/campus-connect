@@ -7,10 +7,12 @@ from .views import (
     FollowUserView,
     FollowersListView,
     FollowingListView,
+    MutualsListView,
 )
 
 urlpatterns = [
     path("", UserListView.as_view(), name="user-list"),
+    path("me/mutuals/", MutualsListView.as_view(), name="user-mutuals"),
     path(
         "username/<str:username>/",
         UserByUsernameView.as_view(),

@@ -18,6 +18,7 @@ from users.models import Follow, User
 
 from .serializers import (
     FollowSerializer,
+    PublicUserSerializer,
     RegisterSerializer,
     UpdateProfileSerializer,
     UserSerializer,
@@ -273,6 +274,20 @@ class FollowUserView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class MutualsListView(generics.ListAPIView):
+    """Users the requester and target both follow (i.e. can DM each other).
+
+    Defaults to the current user, so the chat "New message" picker can list
+    exactly the people the user is allowed to start a direct conversation with.
+    """
+
+    serializer_class = PublicUserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):  # type: ignore
+        return self.request.user.mutuals()
 
 
 class FollowersListView(generics.ListAPIView):

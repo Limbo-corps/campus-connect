@@ -45,12 +45,16 @@ GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
 # Application definition
 
 INSTALLED_APPS = [
+    # Daphne must come first so its runserver replaces Django's WSGI one
+    # (enables ASGI / WebSocket support in development).
+    "daphne",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "channels",
     "corsheaders",
     "rest_framework",
     "campuses",
@@ -94,6 +98,27 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "backend.wsgi.application"
+ASGI_APPLICATION = "backend.asgi.application"
+
+# Channels / real-time
+# Uses Redis when REDIS_URL is set (production / docker), otherwise falls back
+# to the in-memory layer so the app runs with `runserver` in local dev without
+# a Redis instance. The in-memory layer is single-process only (not for prod).
+REDIS_URL = os.getenv("REDIS_URL", "")
+
+if REDIS_URL:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {"hosts": [REDIS_URL]},
+        }
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        }
+    }
 
 
 # Database
@@ -125,14 +150,27 @@ REST_FRAMEWORK = {
     },
 }
 
-# Local in-process cache (swap BACKEND for Redis/Memcached in production).
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
-        "LOCATION": "campus-connect-cache",
-        "TIMEOUT": 300,
+# Cache — backs real-time presence tracking, so it MUST be shared across
+# processes/workers in production. When REDIS_URL is set we use Redis (the same
+# instance that powers the channel layer); otherwise fall back to the
+# single-process in-memory cache for local dev without Redis.
+if REDIS_URL:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_URL,
+            "TIMEOUT": 300,
+            "KEY_PREFIX": "campus-connect",
+        }
     }
-}
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "campus-connect-cache",
+            "TIMEOUT": 300,
+        }
+    }
 
 # Email / contact form
 # Defaults to the console backend (prints to terminal) so the contact form works

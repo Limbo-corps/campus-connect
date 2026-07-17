@@ -1,44 +1,69 @@
 // components/chat/ProfileDeck.tsx
-import React from "react";
-import { Mic, Headphones, Settings } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Wifi, WifiOff } from "lucide-react";
+
+import { useAuth } from "@/contexts/AuthContext";
+import { useChat } from "@/contexts/ChatContext";
+import {
+  getStatus,
+  onStatusChange,
+  statusOption,
+  type UserStatus,
+} from "@/lib/chat/status";
+import { ChatAvatar } from "./ChatAvatar";
+import { StatusPicker } from "./StatusPicker";
 
 export function ProfileDeck() {
+  const { user } = useAuth();
+  const { connected } = useChat();
+  const [status, setStatus] = useState<UserStatus>({ mode: "online" });
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync status from localStorage on mount
+    setStatus(getStatus());
+    return onStatusChange(() => setStatus(getStatus()));
+  }, []);
+
+  const name = user
+    ? `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() ||
+      user.username
+    : "You";
+
+  const option = statusOption(status.mode);
+  // A disconnected socket, or "invisible", both read as grey.
+  const dotHex =
+    !connected || status.mode === "invisible" ? "#94a3b8" : option.hex;
+
   return (
-    <div className="flex h-13 shrink-0 items-center justify-between border-t border-border/15 px-2 py-2 bg-transparent">
-      <div className="flex items-center gap-2 min-w-0 hover:bg-foreground/5 p-1 rounded-md cursor-pointer transition-colors">
-        <div className="relative">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--accent] text-xs font-bold text-[--accent-foreground]">
-            MP
-          </div>
-          <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-border/20 bg-success" />
-        </div>
-        <div className="min-w-0">
+    <div className="flex items-center justify-between gap-2 px-1 py-1">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <Link
+          href={user?.username ? `/profile/${user.username}` : "/profile"}
+          aria-label="Your profile"
+        >
+          <ChatAvatar
+            name={name}
+            avatarUrl={user?.avatar_url}
+            statusHex={dotHex}
+            size="sm"
+          />
+        </Link>
+        <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-semibold text-[--foreground]">
-            My Profile
+            {name}
           </p>
-          <p className="text-[10px] text-success">Online</p>
+          <StatusPicker />
         </div>
       </div>
-      <div className="flex items-center gap-0.5 text-[--foreground]/65">
-        <button
-          className="p-1.5 rounded-md hover:bg-foreground/5 hover:text-[--foreground] transition-colors"
-          aria-label="Mute microphone"
-        >
-          <Mic size={15} />
-        </button>
-        <button
-          className="p-1.5 rounded-md hover:bg-foreground/5 hover:text-[--foreground] transition-colors"
-          aria-label="Toggle audio"
-        >
-          <Headphones size={15} />
-        </button>
-        <button
-          className="p-1.5 rounded-md hover:bg-foreground/5 hover:text-[--foreground] transition-colors"
-          aria-label="Settings"
-        >
-          <Settings size={15} />
-        </button>
-      </div>
+      <span
+        title={connected ? "Realtime connected" : "Reconnecting"}
+        className={`shrink-0 ${connected ? "text-emerald-500" : "text-[--muted]"}`}
+      >
+        {connected ? <Wifi size={15} /> : <WifiOff size={15} />}
+      </span>
     </div>
   );
 }
