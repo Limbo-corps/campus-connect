@@ -1,0 +1,14 @@
+{
+  "languages": {
+    "Python": {
+      "language_servers": ["basedpyright", "django"],
+      "formatter": {
+        "external": {
+          "command": "ruff",
+          "arguments": ["format", "-"],
+        },
+      },
+      "format_on_save": "on",
+    },
+  },
+}
