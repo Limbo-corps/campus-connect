@@ -5,6 +5,7 @@ from django.db.models import Prefetch
 from chat.models import Conversation, ConversationParticipant
 from users.models import User
 
+
 class ConversationSelector:
     @staticmethod
     def get_conversations(conversation_id):
@@ -25,9 +26,7 @@ class ConversationSelector:
     @staticmethod
     def get_user_conversations(user):
         return (
-            Conversation.objects.filter(
-                participants=user
-            )
+            Conversation.objects.filter(participants=user)
             .select_related(
                 "owner",
                 "last_message",

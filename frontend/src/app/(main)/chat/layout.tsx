@@ -4,7 +4,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Card, Input, Button, Badge } from "@heroui/react";
+import { Card, Button } from "@heroui/react";
 import { Plus, Search, MessageSquare } from "lucide-react";
 
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
@@ -97,19 +97,15 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
             </Button>
           </div>
 
-          <Input
-            variant="secondary"
-            radius="xl"
-            placeholder="Search channels..."
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            startContent={<Search size={14} className="text-[--muted]" />}
-            className="w-full"
-            classNames={{
-              inputWrapper:
-                "border-[--surface-secondary] bg-transparent focus-within:!border-[--accent]/50",
-            }}
-          />
+          <label className="flex items-center gap-2 rounded-2xl border border-[--surface-secondary] bg-transparent px-3 py-2 focus-within:border-[--accent]/50">
+            <Search size={14} className="text-[--muted]" />
+            <input
+              placeholder="Search channels..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full bg-transparent text-sm text-[--foreground] outline-none placeholder:text-[--muted]"
+            />
+          </label>
 
           <hr className="border-[--surface-secondary] opacity-60 my-0.5" />
 
@@ -128,15 +124,12 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                       : "bg-transparent border-transparent hover:bg-[--surface-secondary]/40 text-[--foreground]/80"
                   }`}
                 >
-                  <Badge
-                    content=""
-                    color={chat.online ? "success" : "default"}
-                    placement="bottom-right"
-                    disableOutline
-                    size="sm"
-                  >
-                    <ChatAvatar name={chat.name} />
-                  </Badge>
+                  <div className="relative shrink-0">
+                    <ChatAvatar name={chat.name} online={chat.online} />
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[--surface] ${chat.online ? "bg-emerald-500" : "bg-[--surface-secondary]"}`}
+                    />
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-baseline justify-between gap-1">

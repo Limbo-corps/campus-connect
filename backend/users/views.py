@@ -25,8 +25,6 @@ from .serializers import (
 )
 
 
-
-
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
@@ -148,20 +146,22 @@ class UserListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self): # pyright: ignore[reportIncompatibleMethodOverride]
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return (
             User.objects.exclude(pk=self.request.user.pk)
             .exclude(is_superuser=True)
             .order_by("username")
         )
 
+
 class UserByUsernameView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = "username"
 
-    def get_queryset(self): # pyright: ignore[reportIncompatibleMethodOverride]
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         return User.objects.exclude(is_superuser=True)
+
 
 class UserDetailView(generics.RetrieveAPIView):
     serializer_class = UserSerializer
@@ -275,6 +275,7 @@ class FollowUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
+
 class FollowersListView(generics.ListAPIView):
     serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -291,6 +292,7 @@ class FollowersListView(generics.ListAPIView):
         context = super().get_serializer_context()
         context["direction"] = "followers"
         return context
+
 
 class FollowingListView(generics.ListAPIView):
     serializer_class = FollowSerializer

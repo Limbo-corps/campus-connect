@@ -101,15 +101,17 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "tagline",
         ]
 
+
 class FollowUserSerializer(serializers.ModelSerializer):
     pass
+
 
 class FollowSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
 
     class Meta:
         model = Follow
-        fields=[
+        fields = [
             "user",
             "created_at",
         ]
@@ -118,12 +120,6 @@ class FollowSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
 
         if self.context.get("direction") == "followers":
-            return PublicUserSerializer(
-                obj.follower,
-                context={"request": request}
-            ).data
+            return PublicUserSerializer(obj.follower, context={"request": request}).data
 
-        return PublicUserSerializer(
-            obj.following,
-            context={"request": request}
-        ).data
+        return PublicUserSerializer(obj.following, context={"request": request}).data

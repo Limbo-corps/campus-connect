@@ -15,25 +15,24 @@ CAMPUS_LIST_CACHE_KEY = "campuses:list"
 def _invalidate_campus_cache():
     cache.delete(CAMPUS_LIST_CACHE_KEY)
 
+
 @api_view(["POST"])
 @permission_classes([IsAdminUser])
 def create_campus(request):
-    try: 
+    try:
         serializer = CampusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         campus = serializer.save()
         _invalidate_campus_cache()
 
-        return Response(
-            CampusSerializer(campus).data,
-            status=status.HTTP_201_CREATED
-        )
+        return Response(CampusSerializer(campus).data, status=status.HTTP_201_CREATED)
     except Exception as e:
         return Response(
             {"error": f"Internal Server error: {e}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -41,9 +40,8 @@ def get_campuses(request):
     try:
         data = cache.get(CAMPUS_LIST_CACHE_KEY)
         if data is None:
-            campuses = (
-                Campus.objects.annotate(num_students=Count("students"))
-                .order_by("name")
+            campuses = Campus.objects.annotate(num_students=Count("students")).order_by(
+                "name"
             )
             data = CampusSerializer(campuses, many=True).data
             cache.set(CAMPUS_LIST_CACHE_KEY, data, 300)
@@ -52,8 +50,9 @@ def get_campuses(request):
     except Exception as e:
         return Response(
             {"error": f"Internal server error {e}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -77,8 +76,9 @@ def get_campus(request, campus_id):
     except Exception as e:
         return Response(
             {"error": f"Internal Server error {e}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -104,8 +104,9 @@ def join_campus(request, campus_id):
     except Exception as e:
         return Response(
             {"error": f"Internal server error: {e}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
@@ -149,8 +150,9 @@ def update_campus(request, campus_id):
     except Exception as e:
         return Response(
             {"error": f"Internal Server Error: {e}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 
 @api_view(["DELETE"])
 @permission_classes([IsAdminUser])
@@ -174,5 +176,5 @@ def delete_campus(request, campus_id):
     except Exception as e:
         return Response(
             {"error": f"Internal Server Error: {e}"},
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )

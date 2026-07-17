@@ -4,24 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('campuses', '0001_initial'),
+        ("campuses", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='campus',
-            options={'ordering': ['name']},
+            name="campus",
+            options={"ordering": ["name"]},
         ),
         migrations.AddField(
-            model_name='campus',
-            name='banner_url',
+            model_name="campus",
+            name="banner_url",
             field=models.URLField(blank=True, max_length=500),
         ),
         migrations.AddField(
-            model_name='campus',
-            name='logo_url',
+            model_name="campus",
+            name="logo_url",
             field=models.URLField(blank=True, max_length=500),
         ),
     ]

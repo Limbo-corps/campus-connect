@@ -4,25 +4,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('users', '0001_initial'),
+        ("users", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='user',
-            name='profile_template',
-            field=models.CharField(blank=True, default='aurora', max_length=32),
+            model_name="user",
+            name="profile_template",
+            field=models.CharField(blank=True, default="aurora", max_length=32),
         ),
         migrations.AddField(
-            model_name='user',
-            name='tagline',
+            model_name="user",
+            name="tagline",
             field=models.CharField(blank=True, max_length=120),
         ),
         migrations.AlterField(
-            model_name='user',
-            name='avatar_url',
+            model_name="user",
+            name="avatar_url",
             field=models.URLField(blank=True, max_length=500),
         ),
     ]

@@ -24,13 +24,10 @@ class MessageSelector:
 
     @staticmethod
     def get_message(message_id):
-        return (
-            Message.objects.select_related(
-                "sender",
-                "conversation",
-            )
-            .get(id=message_id)
-        )
+        return Message.objects.select_related(
+            "sender",
+            "conversation",
+        ).get(id=message_id)
 
     @staticmethod
     def unread_count(conversation, participant):

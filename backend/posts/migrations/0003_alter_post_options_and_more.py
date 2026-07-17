@@ -5,28 +5,33 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('campuses', '0001_initial'),
-        ('posts', '0002_alter_post_campus'),
+        ("campuses", "0001_initial"),
+        ("posts", "0002_alter_post_campus"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.AlterModelOptions(
-            name='post',
-            options={'ordering': ['-created_at']},
+            name="post",
+            options={"ordering": ["-created_at"]},
         ),
         migrations.AddIndex(
-            model_name='post',
-            index=models.Index(fields=['-created_at'], name='posts_post_created_183a3b_idx'),
+            model_name="post",
+            index=models.Index(
+                fields=["-created_at"], name="posts_post_created_183a3b_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='post',
-            index=models.Index(fields=['author', '-created_at'], name='posts_post_author__f8ea20_idx'),
+            model_name="post",
+            index=models.Index(
+                fields=["author", "-created_at"], name="posts_post_author__f8ea20_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='post',
-            index=models.Index(fields=['campus', '-created_at'], name='posts_post_campus__00481e_idx'),
+            model_name="post",
+            index=models.Index(
+                fields=["campus", "-created_at"], name="posts_post_campus__00481e_idx"
+            ),
         ),
     ]

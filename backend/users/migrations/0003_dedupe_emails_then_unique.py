@@ -14,11 +14,7 @@ from django.db.models import Count
 def dedupe_emails(apps, schema_editor):
     """Keep the earliest-joined account per email; remove the later duplicates."""
     User = apps.get_model("users", "User")
-    dupes = (
-        User.objects.values("email")
-        .annotate(n=Count("id"))
-        .filter(n__gt=1)
-    )
+    dupes = User.objects.values("email").annotate(n=Count("id")).filter(n__gt=1)
     for row in dupes:
         email = row["email"]
         if not email:
@@ -28,7 +24,6 @@ def dedupe_emails(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("users", "0002_user_profile_template_user_tagline_and_more"),
     ]

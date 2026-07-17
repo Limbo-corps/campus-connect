@@ -3,7 +3,7 @@
 
 import React, { useState, useMemo } from "react";
 import type { User } from "@/types";
-import { Modal, Avatar, Button, Input, Skeleton } from "@heroui/react";
+import { Modal, Avatar, Button, Skeleton } from "@heroui/react";
 import { UserPlus, Users, Check, X, Search } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useFollowing } from "@/hooks/useFollow";
@@ -106,38 +106,26 @@ export default function AddDirectMessageModal({
                     <label className="text-[10px] font-bold uppercase tracking-wider text-[--muted]">
                       Group Title (Optional)
                     </label>
-                    <Input
-                      variant="secondary"
-                      radius="lg"
+                    <input
                       placeholder="e.g., Hackathon Cohort, Lab Partners"
                       value={groupName}
                       onChange={(e) => setGroupName(e.target.value)}
-                      className="w-full"
-                      classNames={{
-                        inputWrapper:
-                          "border-[--surface-secondary] bg-transparent focus-within:!border-[--accent]/50",
-                      }}
+                      className="w-full rounded-2xl border border-[--surface-secondary] bg-transparent px-3 py-2 text-sm text-[--foreground] outline-none placeholder:text-[--muted] focus:border-[--accent]/50"
                     />
                   </div>
                 )}
 
                 {/* ── Search Input Bar ── */}
                 <div className="space-y-1.5">
-                  <Input
-                    variant="secondary"
-                    radius="lg"
-                    placeholder="Search people you follow..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    startContent={
-                      <Search size={14} className="text-[--muted]" />
-                    }
-                    className="w-full"
-                    classNames={{
-                      inputWrapper:
-                        "border-[--surface-secondary] bg-transparent focus-within:!border-[--accent]/50",
-                    }}
-                  />
+                  <label className="flex items-center gap-2 rounded-2xl border border-[--surface-secondary] bg-transparent px-3 py-2 focus-within:border-[--accent]/50">
+                    <Search size={14} className="text-[--muted]" />
+                    <input
+                      placeholder="Search people you follow..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full bg-transparent text-sm text-[--foreground] outline-none placeholder:text-[--muted]"
+                    />
+                  </label>
                 </div>
 
                 {/* ── Instagram Selection Pill Badges Tray ── */}
@@ -260,7 +248,7 @@ export default function AddDirectMessageModal({
                 <Button
                   size="sm"
                   type="submit"
-                  disabled={selectedUsers.length === 0}
+                  isDisabled={selectedUsers.length === 0}
                   className={`rounded-xl text-xs font-bold transition-all ${
                     selectedUsers.length > 0
                       ? "bg-[--accent] text-[--accent-foreground] hover:opacity-95"
