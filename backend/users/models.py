@@ -1,11 +1,14 @@
 # users/models.py
 
-from django.contrib.auth.models import AbstractUser
-from django.db import models
 import uuid
+
+from django.contrib.auth.models import AbstractUser, UserManager
+from django.core.exceptions import ValidationError
+from django.db import models
 
 
 class User(AbstractUser):
+    objects = UserManager()
     id = models.UUIDField(
         primary_key=True,
         default=uuid.uuid4,
@@ -15,7 +18,6 @@ class User(AbstractUser):
     bio = models.TextField(blank=True)
     avatar_url = models.URLField(blank=True, max_length=500)
 
-    # Profile customisation
     profile_template = models.CharField(max_length=32, default="aurora", blank=True)
     tagline = models.CharField(max_length=120, blank=True)
 
@@ -31,4 +33,47 @@ class User(AbstractUser):
         null=True,
         blank=True,
     )
-    
+
+    following = models.ManyToManyField(
+        "self",
+        through="Follow",
+        through_fields=("follower", "following"),
+        symmetrical=False,
+        related_name="followers",
+    )
+
+
+class Follow(models.Model):
+    follower = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="following_relationships",
+    )
+
+    following = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="follower_relationships",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["follower", "following"],
+                name="unique_follow_relationship",
+            )
+        ]
+        ordering = ["-created_at"]
+
+    def clean(self):
+        if self.follower == self.following:
+            raise ValidationError("Users cannot follow themselves.")
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.follower.username} → {self.following.username}"

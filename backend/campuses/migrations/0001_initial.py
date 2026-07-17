@@ -5,23 +5,29 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Campus',
+            name="Campus",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=25)),
-                ('slug', models.SlugField(unique=True)),
-                ('city', models.CharField(blank=True, max_length=100)),
-                ('state', models.CharField(blank=True, max_length=100)),
-                ('description', models.TextField(blank=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("name", models.CharField(max_length=25)),
+                ("slug", models.SlugField(unique=True)),
+                ("city", models.CharField(blank=True, max_length=100)),
+                ("state", models.CharField(blank=True, max_length=100)),
+                ("description", models.TextField(blank=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
             ],
         ),
     ]

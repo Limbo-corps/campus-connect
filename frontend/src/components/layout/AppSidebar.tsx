@@ -15,6 +15,7 @@ import {
   X,
   PanelLeftClose,
   Search,
+  MessageSquare, // Imported MessageSquare icon
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDialogs } from "@/contexts/DialogsContext";
@@ -55,8 +56,18 @@ export default function AppSidebar({
   const userCampusId = (user as unknown as { campus?: string })?.campus;
   const userCampus = campuses.find((c) => c.id === userCampusId);
 
+  // Dynamically compute the profile URL context depending on user session availability
+  const profileHref = user?.username ? `/profile/${user.username}` : "/profile";
+
+  // Added Chat navigation item to NAV
   const NAV = [
     { href: "/feed", icon: Rss, label: "Feed", badge: posts.length },
+    {
+      href: "/chat",
+      icon: MessageSquare,
+      label: "Messages",
+      badge: 7, // Replace with dynamic unread message counts when real state is integrated
+    },
     {
       href: "/campus",
       icon: Building2,
@@ -64,7 +75,7 @@ export default function AppSidebar({
       badge: campuses.length,
     },
     {
-      href: "/profile",
+      href: profileHref,
       icon: User,
       label: "Profile",
       badge: null as number | null,
@@ -116,7 +127,7 @@ export default function AppSidebar({
 
       {/* Profile block */}
       <Link
-        href="/profile"
+        href={profileHref}
         onClick={onClose}
         title="View your profile"
         className="flex shrink-0 flex-col items-center gap-2 border-b border-white/15 px-4 py-5 text-center transition-colors hover:bg-white/10"
@@ -147,7 +158,7 @@ export default function AppSidebar({
       <div className="px-3 pt-4">
         <Link
           href="/search"
-          onClick={onClose} // Closes the mobile side drawer container layout on navigate
+          onClick={onClose}
           className="flex w-full items-center gap-2 rounded-lg bg-black/15 px-3 py-2 text-left text-xs font-medium text-white/75 transition-colors hover:bg-black/25 hover:text-white"
         >
           <Search size={14} className="text-white/60" />
@@ -167,6 +178,7 @@ export default function AppSidebar({
           </p>
           <nav className="space-y-1">
             {NAV.map(({ href, icon: Icon, label, badge }) => {
+              // Active check accommodates both static exact routing, dynamic sub-paths, or nested parameters
               const active =
                 href === "/feed"
                   ? pathname === "/feed"

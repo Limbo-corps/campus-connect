@@ -96,4 +96,3 @@ class Like(models.Model):
                 name="unique_post_like",
             )
         ]
-

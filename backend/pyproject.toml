@@ -13,4 +13,10 @@ dependencies = [
     "django-cors-headers>=4.0.0",
     "ruff>=0.15.17",
     "pyright>=1.1.410",
+    "pillow>=12.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "django-stubs>=6.0.7",
 ]

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import Link from "next/link";
 import {
   Card,
   Skeleton,
@@ -23,79 +24,61 @@ import { useCampuses } from "@/hooks/useCampuses";
 import { useAuth } from "@/contexts/AuthContext";
 import CampusEmblem from "@/components/campus/CampusEmblem";
 import InlineSearch from "@/components/layout/InlineSearch";
-import Link from "next/link";
-
-interface StudentUser {
-  id: string;
-  username: string;
-  first_name: string;
-  last_name: string;
-  avatar_url?: string;
-  campus?: string;
-  bio?: string;
-  headline?: string;
-  major?: string;
-}
-
-const DUMMY_STUDENTS: StudentUser[] = [
-  {
-    id: "stud-1",
-    username: "alex_dev",
-    first_name: "Alex",
-    last_name: "Rivera",
-    headline: "Building open-source apps & drinking excessive espresso ☕",
-    major: "Computer Science",
-    campus: "camp-1",
-  },
-  {
-    id: "stud-2",
-    username: "sarah_design",
-    first_name: "Sarah",
-    last_name: "Chen",
-    headline: "UI/UX enthusiast. Let's collaborate on hackathons!",
-    major: "Digital Media Arts",
-    campus: "camp-2",
-  },
-  {
-    id: "stud-3",
-    username: "marcus_j",
-    first_name: "Marcus",
-    last_name: "Johnson",
-    headline: "Pre-med track | Fitness club lead | Researching genetics 🧬",
-    major: "Bio-Molecular Engineering",
-    campus: "camp-1",
-  },
-  {
-    id: "stud-4",
-    username: "elena_w",
-    first_name: "Elena",
-    last_name: "Rostova",
-    headline: "Asst. Editor for Campus Chronicle. Send story scoops my way!",
-    major: "Journalism & Media",
-    campus: "camp-3",
-  },
-];
+import { getUsers } from "@/lib/users/api";
+import type { User } from "@/types";
 
 export default function SearchPage() {
   const { user: currentUser } = useAuth();
   const { campuses } = useCampuses();
+
   const [query, setQuery] = useState("");
   const [selectedCampusFilter, setSelectedCampusFilter] =
     useState<string>("all");
 
-  const [students] = useState<StudentUser[]>(DUMMY_STUDENTS);
-  const [loading] = useState(false);
+  const [students, setStudents] = useState<User[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const userCampus = campuses.find(
-    (c) => c.id === (currentUser as unknown as { campus?: string })?.campus,
-  );
+  // Fetch live network profiles on mount
+  useEffect(() => {
+    let isMounted = true;
 
+    async function fetchNetworkData() {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getUsers();
+        if (isMounted) {
+          setStudents(data);
+        }
+      } catch (err) {
+        console.error("Error retrieving user directory:", err);
+        if (isMounted) {
+          setError("Failed to load user directory. Please try again later.");
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    }
+
+    fetchNetworkData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const userCampus = campuses.find((c) => c.id === currentUser?.campus);
+
+  // Filter computation
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
       const matchesQuery = !query
         ? true
-        : student.username.toLowerCase().includes(query.toLowerCase()) ||
-          `${student.first_name} ${student.last_name}`
+        : student.username?.toLowerCase().includes(query.toLowerCase()) ||
+          `${student.first_name || ""} ${student.last_name || ""}`
             .toLowerCase()
             .includes(query.toLowerCase()) ||
           student.major?.toLowerCase().includes(query.toLowerCase()) ||
@@ -112,11 +95,17 @@ export default function SearchPage() {
     });
   }, [query, selectedCampusFilter, students, userCampus]);
 
+  // Counts profiles belonging to a particular campus ID
+  const getCampusStudentCount = (campusId: string) => {
+    return students.filter((s) => s.campus === campusId).length;
+  };
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto p-1">
+      {/* Breadcrumbs Navigation Block */}
       <Breadcrumbs>
         <Breadcrumbs.Item href="/feed">Home</Breadcrumbs.Item>
-        <Breadcrumbs.Item>Directory</Breadcrumbs.Item>
+        <Breadcrumbs.Item href="/search">Directory</Breadcrumbs.Item>
       </Breadcrumbs>
 
       {/* Main Responsive Grid Layout */}
@@ -133,15 +122,16 @@ export default function SearchPage() {
               </div>
 
               {/* Scope Toggles */}
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
                   <label className="text-[10px] font-bold uppercase tracking-wider text-[--muted]">
                     Campus Scope
                   </label>
-                  <div className="mt-1.5 flex flex-col gap-1">
+                  <div className="mt-1.5 flex max-h-80 flex-col gap-1 overflow-y-auto pr-1">
+                    {/* Global Filter */}
                     <button
                       onClick={() => setSelectedCampusFilter("all")}
-                      className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors ${
+                      className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
                         selectedCampusFilter === "all"
                           ? "bg-[--accent]/10 text-[--accent]"
                           : "hover:bg-[--surface-secondary] text-[--muted] hover:text-[--foreground]"
@@ -156,16 +146,17 @@ export default function SearchPage() {
                         color={
                           selectedCampusFilter === "all" ? "accent" : "default"
                         }
-                        className="text-[10px] font-bold"
+                        className="text-[10px] font-bold h-5 px-1.5 min-w-4"
                       >
                         {students.length}
                       </Chip>
                     </button>
 
+                    {/* Logged In User's Native Campus Filter */}
                     {userCampus && (
                       <button
                         onClick={() => setSelectedCampusFilter("mine")}
-                        className={`flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors ${
+                        className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
                           selectedCampusFilter === "mine"
                             ? "bg-[--accent]/10 text-[--accent]"
                             : "hover:bg-[--surface-secondary] text-[--muted] hover:text-[--foreground]"
@@ -174,20 +165,68 @@ export default function SearchPage() {
                         <span className="flex items-center gap-2">
                           <GraduationCap size={14} /> My Campus
                         </span>
+                        <Chip
+                          size="sm"
+                          variant="soft"
+                          color={
+                            selectedCampusFilter === "mine"
+                              ? "accent"
+                              : "default"
+                          }
+                          className="text-[10px] font-bold h-5 px-1.5 min-w-4"
+                        >
+                          {getCampusStudentCount(userCampus.id)}
+                        </Chip>
                       </button>
                     )}
+
+                    {/* Divider if other campuses exist */}
+                    {campuses.length > 0 && (
+                      <div className="my-1.5 border-t border-[--border]/40" />
+                    )}
+
+                    {/* Active list of other dynamic campus options */}
+                    {campuses
+                      .filter((c) => c.id !== userCampus?.id)
+                      .map((campus) => {
+                        const count = getCampusStudentCount(campus.id);
+                        const isSelected = selectedCampusFilter === campus.id;
+                        return (
+                          <button
+                            key={campus.id}
+                            onClick={() => setSelectedCampusFilter(campus.id)}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                              isSelected
+                                ? "bg-[--accent]/10 text-[--accent]"
+                                : "hover:bg-[--surface-secondary] text-[--muted] hover:text-[--foreground]"
+                            }`}
+                          >
+                            <span className="flex max-w-37.5 items-center gap-2 truncate">
+                              <MapPin size={13} className="shrink-0" />
+                              {campus.name}
+                            </span>
+                            <Chip
+                              size="sm"
+                              variant="soft"
+                              color={isSelected ? "accent" : "default"}
+                              className="text-[10px] font-bold h-5 px-1.5 min-w-4 shrink-0"
+                            >
+                              {count}
+                            </Chip>
+                          </button>
+                        );
+                      })}
                   </div>
                 </div>
 
                 {/* Search Guidelines Helper Block */}
-                <div className="rounded-xl bg-[--surface-secondary] p-3 text-[11px] text-[--muted] leading-relaxed border border-[--border]">
-                  <span className="flex items-center gap-1 font-bold text-[--foreground] mb-1">
+                <div className="rounded-xl border border-[--border] bg-[--surface-secondary] p-3 text-[11px] leading-relaxed text-[--muted]">
+                  <span className="mb-1 flex items-center gap-1 font-bold text-[--foreground]">
                     <HelpCircle size={12} className="text-[--accent]" /> Search
                     Tip
                   </span>
-                  Refine network matches instantly by typing specific degree
-                  certifications, personal taglines, handles, or native
-                  institutions.
+                  Refine network matches instantly by typing specific majors,
+                  personal taglines, handles, or names.
                 </div>
               </div>
             </div>
@@ -196,8 +235,8 @@ export default function SearchPage() {
 
         {/* ── Right Main Stream (Toolbar & Result Grid) ── */}
         <section className="col-span-12 lg:col-span-8 xl:col-span-9 space-y-4">
-          {/* Fluid Inline Layout Header (No background cards, borders, or outer shadows) */}
-          <div className="flex items-center justify-between gap-2 px-0.5">
+          {/* Fluid Inline Layout Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-0.5">
             <h2 className="flex items-center gap-2 text-lg font-bold text-[--foreground]">
               {query ? "Search Matches" : "Explore Network"}
               <span className="rounded-full bg-[--accent]/15 px-2 py-0.5 text-[10px] font-semibold text-[--accent]">
@@ -234,6 +273,10 @@ export default function SearchPage() {
                 </Card>
               ))}
             </div>
+          ) : error ? (
+            <Card className="border border-red-200 bg-red-50/50 p-6 rounded-xl text-center">
+              <p className="text-sm font-semibold text-red-600">{error}</p>
+            </Card>
           ) : filteredStudents.length === 0 ? (
             <Card className="border border-dashed border-[--border] bg-[--surface] shadow-xs rounded-xl">
               <div className="flex flex-col items-center py-20 text-center max-w-xs mx-auto">
@@ -244,8 +287,8 @@ export default function SearchPage() {
                   No Classmates Found
                 </h4>
                 <p className="text-xs text-[--muted] mt-1 leading-normal">
-                  We couldn&apos;t match any student profiles to your query
-                  options. Adjust keywords or scope toggles.
+                  We couldn&apos;t match any student profiles to your search
+                  query. Try adjusting keywords or broadening your campus scope.
                 </p>
               </div>
             </Card>
@@ -257,8 +300,15 @@ export default function SearchPage() {
                   const studentCampus = campuses.find(
                     (c) => c.id === student.campus,
                   );
+
+                  // Safe fallback initial building block
                   const initials =
-                    `${student.first_name?.[0] ?? ""}${student.last_name?.[0] ?? ""}`.toUpperCase();
+                    (
+                      (student.first_name?.[0] ?? "") +
+                      (student.last_name?.[0] ?? "")
+                    ).toUpperCase() ||
+                    student.username?.[0]?.toUpperCase() ||
+                    "?";
 
                   return (
                     <Link
@@ -277,7 +327,7 @@ export default function SearchPage() {
                                 alt={student.username}
                               />
                             ) : (
-                              initials || "?"
+                              initials
                             )}
                           </Avatar>
 

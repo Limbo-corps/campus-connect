@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "posts",
     "comments",
     "common",
+    "chat",
 ]
 
 # settings.py

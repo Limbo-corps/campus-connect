@@ -12,9 +12,7 @@ class CookieAuthTests(APITestCase):
         self.email = "testuser@example.com"
         self.password = "Secr3tP@ssw0rd!"
         self.user = User.objects.create_user(
-            username=self.username,
-            email=self.email,
-            password=self.password
+            username=self.username, email=self.email, password=self.password
         )
         self.login_url = reverse("login")
         self.refresh_url = reverse("refresh")
@@ -28,7 +26,7 @@ class CookieAuthTests(APITestCase):
             "email": "newuser@example.com",
             "password": "NewUserP@ss!",
             "first_name": "New",
-            "last_name": "User"
+            "last_name": "User",
         }
         response = self.client.post(self.register_url, data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)

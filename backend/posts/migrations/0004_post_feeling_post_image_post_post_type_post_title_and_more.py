@@ -4,35 +4,43 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('posts', '0003_alter_post_options_and_more'),
+        ("posts", "0003_alter_post_options_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='post',
-            name='feeling',
-            field=models.CharField(blank=True, default='', max_length=50),
+            model_name="post",
+            name="feeling",
+            field=models.CharField(blank=True, default="", max_length=50),
         ),
         migrations.AddField(
-            model_name='post',
-            name='image',
-            field=models.FileField(blank=True, null=True, upload_to='posts/%Y/%m/'),
+            model_name="post",
+            name="image",
+            field=models.FileField(blank=True, null=True, upload_to="posts/%Y/%m/"),
         ),
         migrations.AddField(
-            model_name='post',
-            name='post_type',
-            field=models.CharField(choices=[('text', 'Text'), ('photo', 'Photo'), ('article', 'Article'), ('feeling', 'Feeling')], default='text', max_length=10),
+            model_name="post",
+            name="post_type",
+            field=models.CharField(
+                choices=[
+                    ("text", "Text"),
+                    ("photo", "Photo"),
+                    ("article", "Article"),
+                    ("feeling", "Feeling"),
+                ],
+                default="text",
+                max_length=10,
+            ),
         ),
         migrations.AddField(
-            model_name='post',
-            name='title',
-            field=models.CharField(blank=True, default='', max_length=200),
+            model_name="post",
+            name="title",
+            field=models.CharField(blank=True, default="", max_length=200),
         ),
         migrations.AlterField(
-            model_name='post',
-            name='content',
-            field=models.TextField(blank=True, default=''),
+            model_name="post",
+            name="content",
+            field=models.TextField(blank=True, default=""),
         ),
     ]

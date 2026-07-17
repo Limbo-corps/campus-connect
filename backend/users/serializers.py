@@ -1,10 +1,9 @@
-from rest_framework import serializers
-from django.contrib.auth import get_user_model
 
 from django.contrib.auth.password_validation import validate_password
+from rest_framework import serializers
 
+from users.models import Follow, User
 
-User = get_user_model()
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
@@ -22,14 +21,34 @@ class RegisterSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
         ]
-    # // verify email if alredy not verified and create user if not exist, otherwise just return the user
 
     def create(self, validated_data):
         return User.objects.create_user(**validated_data)
 
-class UserSerializer(serializers.ModelSerializer):
+
+class BaseUserSerializer(serializers.ModelSerializer):
     campus = serializers.PrimaryKeyRelatedField(read_only=True)
 
+    followers_count = serializers.SerializerMethodField()
+    following_count = serializers.SerializerMethodField()
+    is_following = serializers.SerializerMethodField()
+
+    def get_followers_count(self, obj):
+        return obj.followers.count()
+
+    def get_following_count(self, obj):
+        return obj.following.count()
+
+    def get_is_following(self, obj):
+        request = self.context.get("request")
+
+        if request is None or request.user.is_anonymous or request.user == obj:
+            return False
+
+        return request.user.following.filter(pk=obj.pk).exists()
+
+
+class UserSerializer(BaseUserSerializer):
     class Meta:
         model = User
         fields = [
@@ -43,12 +62,32 @@ class UserSerializer(serializers.ModelSerializer):
             "profile_template",
             "tagline",
             "campus",
+            "followers_count",
+            "following_count",
+            "is_following",
+        ]
+
+
+class PublicUserSerializer(BaseUserSerializer):
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "username",
+            "first_name",
+            "last_name",
+            "bio",
+            "avatar_url",
+            "profile_template",
+            "tagline",
+            "campus",
+            "followers_count",
+            "following_count",
+            "is_following",
         ]
 
 
 class UpdateProfileSerializer(serializers.ModelSerializer):
-    """Only the fields a user is allowed to edit about themselves."""
-
     class Meta:
         model = User
         fields = [
@@ -59,3 +98,26 @@ class UpdateProfileSerializer(serializers.ModelSerializer):
             "profile_template",
             "tagline",
         ]
+
+
+class FollowUserSerializer(serializers.ModelSerializer):
+    pass
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Follow
+        fields = [
+            "user",
+            "created_at",
+        ]
+
+    def get_user(self, obj):
+        request = self.context.get("request")
+
+        if self.context.get("direction") == "followers":
+            return PublicUserSerializer(obj.follower, context={"request": request}).data
+
+        return PublicUserSerializer(obj.following, context={"request": request}).data

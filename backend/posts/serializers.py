@@ -68,9 +68,13 @@ class PostSerializer(serializers.ModelSerializer):
         inst = self.instance
         content = attrs.get("content", getattr(inst, "content", "") if inst else "")
         feeling = attrs.get("feeling", getattr(inst, "feeling", "") if inst else "")
-        has_image = bool(attrs.get("image")) or bool(getattr(inst, "image", None) if inst else None)
+        has_image = bool(attrs.get("image")) or bool(
+            getattr(inst, "image", None) if inst else None
+        )
         if not ((content or "").strip() or (feeling or "").strip() or has_image):
-            raise serializers.ValidationError("A post needs text, an image, or a feeling.")
+            raise serializers.ValidationError(
+                "A post needs text, an image, or a feeling."
+            )
         return attrs
 
     def get_likes_count(self, obj):
