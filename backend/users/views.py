@@ -287,7 +287,8 @@ class MutualsListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):  # type: ignore
-        return self.request.user.mutuals()
+        request_user = cast(User, self.request.user)
+        return request_user.mutuals()
 
 
 class FollowersListView(generics.ListAPIView):

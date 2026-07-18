@@ -1,41 +1,43 @@
-// app/chat/[id]/page.tsx
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, Spinner } from "@heroui/react";
-import { ShieldAlert } from "lucide-react";
+import { Card, Spinner, Accordion, Switch } from "@heroui/react";
+import useSWR from "swr";
+import {
+  ShieldAlert,
+  FileText,
+  MessageCircle,
+  GraduationCap,
+  Bell,
+  Users,
+  Info,
+  School,
+  MapPin,
+} from "lucide-react";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/contexts/ChatContext";
+import { useCampuses } from "@/hooks/useCampuses";
 import { useMessages, type LocalMessage } from "@/hooks/useMessages";
 import * as chatApi from "@/lib/chat/api";
+import { getUserByUsername } from "@/lib/users/api";
+import { campusImage } from "@/lib/banners";
+import CampusEmblem from "@/components/campus/CampusEmblem";
 import {
   formatDayDivider,
   otherParticipant,
   shouldGroup,
   userDisplayName,
 } from "@/lib/chat/format";
-import type {
-  ChatEvent,
-  Conversation,
-  ReadReceiptPayload,
-} from "@/types";
+import type { ChatEvent, Conversation, ReadReceiptPayload } from "@/types";
 
 import { ThreadHeader } from "@/components/chat/ThreadHeader";
 import { MessageItem } from "@/components/chat/MessageItem";
 import { MessageInput } from "@/components/chat/MessageInput";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import AddParticipantModal from "@/components/chat/AddParticipantModal";
-import ChatThemeModal from "@/components/chat/ChatThemeModal";
 import type { SendInput } from "@/hooks/useMessages";
-import {
-  DEFAULT_THEME,
-  getTheme,
-  onThemeChange,
-  themeLayerStyles,
-  type ChatTheme,
-} from "@/lib/chat/themes";
 import { BOT_USER, isBotCommand, runBotCommand } from "@/lib/chat/bot";
 
 export default function ChatDetailPage() {
@@ -45,6 +47,9 @@ export default function ChatDetailPage() {
 
   const { user } = useAuth();
   const meId = user?.id ?? null;
+  const currentCampusId = user?.campus;
+
+  const { campuses } = useCampuses();
   const {
     conversations,
     isOnline,
@@ -56,6 +61,11 @@ export default function ChatDetailPage() {
     removeConversation,
     refresh,
   } = useChat();
+
+  const activeCampus = useMemo(() => {
+    if (!currentCampusId || !campuses) return null;
+    return campuses.find((c) => c.id === currentCampusId) ?? null;
+  }, [currentCampusId, campuses]);
 
   const {
     messages,
@@ -69,8 +79,6 @@ export default function ChatDetailPage() {
     react,
   } = useMessages(conversationId);
 
-  // Prefer the conversation from the live list; fall back to a direct fetch
-  // (e.g. when the page is opened via a deep link before the list loads).
   const listConversation = conversations.find((c) => c.id === conversationId);
   const [fetched, setFetched] = useState<Conversation | null>(null);
   const conversation = listConversation ?? fetched;
@@ -79,94 +87,100 @@ export default function ChatDetailPage() {
   const [replyTo, setReplyTo] = useState<LocalMessage | null>(null);
   const [editing, setEditing] = useState<LocalMessage | null>(null);
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
-  const [themeOpen, setThemeOpen] = useState(false);
-  const [theme, setThemeState] = useState<ChatTheme>(DEFAULT_THEME);
   const [botMessages, setBotMessages] = useState<LocalMessage[]>([]);
   const [otherLastReadAt, setOtherLastReadAt] = useState<number | null>(null);
+
+  const [isMuted, setIsMuted] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const prevLenRef = useRef(0);
 
-  // Fetch the conversation if it isn't in the live list.
+  const checkUserOnlineStatus = useCallback(
+    (userId?: string) => {
+      if (!userId) return false;
+      return typeof isOnline === "function"
+        ? isOnline(userId)
+        : !!isOnline?.[userId];
+    },
+    [isOnline],
+  );
+
   useEffect(() => {
     if (!conversationId || listConversation) return;
-    let cancelled = false;
+    let isMounted = true;
+
     chatApi
       .getConversation(conversationId)
-      .then((c) => !cancelled && setFetched(c))
-      .catch(() => !cancelled && setNotFound(true));
+      .then((c) => {
+        if (isMounted) setFetched(c);
+      })
+      .catch(() => {
+        if (isMounted) setNotFound(true);
+      });
+
     return () => {
-      cancelled = true;
+      isMounted = false;
     };
   }, [conversationId, listConversation]);
 
-  // Mark this conversation active (suppresses unread + auto-marks read).
+  const otherBase = useMemo(() => {
+    if (!conversation) return null;
+    return otherParticipant(conversation, meId);
+  }, [conversation, meId]);
+
+  const { data: fullOtherProfile } = useSWR(
+    conversation?.is_group || !otherBase?.username
+      ? null
+      : ["chat-user", otherBase.username],
+    () => getUserByUsername(otherBase!.username),
+  );
+
+  const other = useMemo(() => {
+    if (!otherBase) return null;
+    return { ...otherBase, ...fullOtherProfile };
+  }, [otherBase, fullOtherProfile]);
+
   useEffect(() => {
     setActiveConversation(conversationId);
     return () => setActiveConversation(null);
   }, [conversationId, setActiveConversation]);
 
-  // Load the per-conversation theme and keep it in sync with live edits.
-  useEffect(() => {
-    if (!conversationId) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync theme from localStorage on conversation change
-    setThemeState(getTheme(conversationId));
-    setBotMessages([]); // ephemeral bot chatter doesn't cross conversations
-    return onThemeChange((id) => {
-      if (id === conversationId) setThemeState(getTheme(conversationId));
-    });
-  }, [conversationId]);
-
-  // Mark read once the initial history has loaded.
   useEffect(() => {
     if (!conversationId || loading || messages.length === 0) return;
     const last = messages[messages.length - 1];
-    if (last && !last.pending) void markRead(conversationId, last.id);
+    if (last && !last.pending) {
+      void markRead(conversationId, last.id);
+    }
   }, [conversationId, loading, messages, markRead]);
 
-  // Seed the "other party has read" marker from the conversation snapshot.
-  useEffect(() => {
-    if (!conversation) return;
-    const others = conversation.participants_detail?.filter(
-      (p) => p.user.id !== meId,
-    );
-    const readIds = (others ?? [])
-      .map((p) => p.last_read_message)
-      .filter(Boolean) as string[];
-    if (readIds.length === 0) return;
-    // Find the newest message among those the others have read.
-    const times = messages
-      .filter((m) => readIds.includes(m.id))
-      .map((m) => new Date(m.created_at).getTime());
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- deriving read state from the loaded snapshot
-    if (times.length) setOtherLastReadAt(Math.max(...times));
-  }, [conversation, messages, meId]);
-
-  // Live read receipts from the other participant(s).
   useEffect(() => {
     if (!conversationId) return;
-    const off = subscribe((event: ChatEvent) => {
+
+    return subscribe((event: ChatEvent) => {
       if (event.event !== "read.receipt") return;
       const data = event.data as ReadReceiptPayload;
       if (data.conversation !== conversationId || data.user_id === meId) return;
+
       const msg = messages.find((m) => m.id === data.last_read_message);
       if (msg) setOtherLastReadAt(new Date(msg.created_at).getTime());
     });
-    return off;
   }, [conversationId, subscribe, meId, messages]);
 
-  // Auto-scroll to the newest message when appropriate.
   useEffect(() => {
     if (loading) return;
+
     const grew = messages.length > prevLenRef.current;
     const last = messages[messages.length - 1];
-    const mine = last?.sender.id === meId;
+    const isMine = last?.sender.id === meId;
     const el = scrollRef.current;
+
     const nearBottom = el
       ? el.scrollHeight - el.scrollTop - el.clientHeight < 200
       : true;
-    if (grew && (mine || nearBottom || prevLenRef.current === 0)) {
+
+    if (grew && (isMine || nearBottom || prevLenRef.current === 0)) {
       endRef.current?.scrollIntoView({
         behavior: prevLenRef.current === 0 ? "auto" : "smooth",
       });
@@ -174,13 +188,11 @@ export default function ChatDetailPage() {
     prevLenRef.current = messages.length;
   }, [messages, loading, meId]);
 
-  // Infinite scroll: load older when scrolled to the top.
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (el && el.scrollTop < 60 && hasMore && !loadingOlder) {
       const prevHeight = el.scrollHeight;
       void loadOlder().then(() => {
-        // Preserve viewport position after prepending older messages.
         requestAnimationFrame(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop =
@@ -208,8 +220,6 @@ export default function ChatDetailPage() {
     [react],
   );
 
-  // Intercept CampusBot slash commands: run them locally and show ephemeral
-  // messages instead of sending to the backend.
   const handleSend = useCallback(
     async (input: SendInput) => {
       const content = (input.content ?? "").trim();
@@ -260,7 +270,6 @@ export default function ChatDetailPage() {
     [send, conversationId, user],
   );
 
-  // Real messages plus ephemeral bot chatter, ordered by time.
   const allMessages = useMemo(() => {
     if (botMessages.length === 0) return messages;
     return [...messages, ...botMessages].sort(
@@ -269,8 +278,24 @@ export default function ChatDetailPage() {
     );
   }, [messages, botMessages]);
 
-  const themeStyles = useMemo(() => themeLayerStyles(theme), [theme]);
-  const themed = theme.id !== "default" || !!theme.image;
+  const derivedOtherLastReadAt = useMemo(() => {
+    if (!conversation || messages.length === 0) return null;
+
+    const others =
+      conversation.participants_detail?.filter((p) => p.user.id !== meId) || [];
+    const readIds = others
+      .map((p) => p.last_read_message)
+      .filter(Boolean) as string[];
+    if (readIds.length === 0) return null;
+
+    const targetTimes = messages
+      .filter((m) => readIds.includes(m.id))
+      .map((m) => new Date(m.created_at).getTime());
+
+    return targetTimes.length ? Math.max(...targetTimes) : null;
+  }, [conversation, messages, meId]);
+
+  const effectiveOtherLastReadAt = otherLastReadAt ?? derivedOtherLastReadAt;
 
   const handleRename = useCallback(async () => {
     if (!conversation) return;
@@ -298,7 +323,6 @@ export default function ChatDetailPage() {
     }
   }, [conversation, removeConversation, router]);
 
-  // Typing indicator text for this conversation.
   const typingText = useMemo(() => {
     const map = typing[conversationId];
     if (!map) return null;
@@ -308,7 +332,6 @@ export default function ChatDetailPage() {
     return `${names.length} people are typing…`;
   }, [typing, conversationId]);
 
-  // The last non-deleted message I sent (for the read receipt).
   const myLastMessageId = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i];
@@ -338,7 +361,7 @@ export default function ChatDetailPage() {
     );
   }
 
-  const other = otherParticipant(conversation, meId);
+  const otherIsOnline = checkUserOnlineStatus(other?.id);
 
   return (
     <div className="grid h-full w-full grid-cols-9 gap-4">
@@ -354,89 +377,76 @@ export default function ChatDetailPage() {
             onAddPeople={() => setAddPeopleOpen(true)}
             onLeave={handleLeave}
             onDelete={handleDeleteConversation}
-            onOpenTheme={() => setThemeOpen(true)}
           />
 
           <div className="relative flex-1 overflow-hidden">
-            {themed && (
-              <>
-                <div
-                  className="pointer-events-none absolute inset-0 bg-[--surface]"
-                  style={themeStyles.base}
-                />
-                <div
-                  className="pointer-events-none absolute inset-0"
-                  style={themeStyles.scrim}
-                />
-              </>
-            )}
             <div
               ref={scrollRef}
               onScroll={onScroll}
               className="absolute inset-0 overflow-y-auto px-4 py-4 [scrollbar-width:thin]"
             >
-            {loading ? (
-              <div className="flex h-full items-center justify-center">
-                <Spinner />
-              </div>
-            ) : allMessages.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center text-[--muted]">
-                <p className="text-sm font-medium">No messages yet</p>
-                <p className="text-xs">Say hi to start the conversation.</p>
-              </div>
-            ) : (
-              <>
-                {loadingOlder && (
-                  <div className="flex justify-center py-2">
-                    <Spinner size="sm" />
-                  </div>
-                )}
-                {allMessages.map((message, i) => {
-                  const prev = allMessages[i - 1];
-                  const isMe = message.sender.id === meId;
-                  const grouped = shouldGroup(prev, message);
-                  const showDivider =
-                    !prev ||
-                    new Date(prev.created_at).toDateString() !==
-                      new Date(message.created_at).toDateString();
-
-                  const isSeen =
-                    isMe &&
-                    message.id === myLastMessageId &&
-                    otherLastReadAt !== null &&
-                    otherLastReadAt >= new Date(message.created_at).getTime();
-
-                  return (
-                    <div key={message.id}>
-                      {showDivider && (
-                        <div className="my-3 flex items-center justify-center">
-                          <span className="rounded-full bg-[--surface-secondary] px-3 py-0.5 text-[10px] font-medium text-[--muted]">
-                            {formatDayDivider(message.created_at)}
-                          </span>
-                        </div>
-                      )}
-                      <MessageItem
-                        message={message}
-                        isMe={isMe}
-                        isGroup={conversation.is_group}
-                        showHeader={!grouped || showDivider}
-                        meId={user?.id}
-                        onReply={setReplyTo}
-                        onEdit={setEditing}
-                        onDelete={handleDelete}
-                        onReact={handleReact}
-                      />
-                      {isSeen && (
-                        <p className="mt-0.5 pr-1 text-right text-[10px] font-medium text-[--accent]">
-                          Seen
-                        </p>
-                      )}
+              {loading ? (
+                <div className="flex h-full items-center justify-center">
+                  <Spinner />
+                </div>
+              ) : allMessages.length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center text-center text-[--muted]">
+                  <p className="text-sm font-medium">No messages yet</p>
+                  <p className="text-xs">Say hi to start the conversation.</p>
+                </div>
+              ) : (
+                <>
+                  {loadingOlder && (
+                    <div className="flex justify-center py-2">
+                      <Spinner size="sm" />
                     </div>
-                  );
-                })}
-                <div ref={endRef} />
-              </>
-            )}
+                  )}
+                  {allMessages.map((message, i) => {
+                    const prev = allMessages[i - 1];
+                    const isMe = message.sender.id === meId;
+                    const grouped = shouldGroup(prev, message);
+                    const showDivider =
+                      !prev ||
+                      new Date(prev.created_at).toDateString() !==
+                        new Date(message.created_at).toDateString();
+
+                    const isSeen =
+                      isMe &&
+                      message.id === myLastMessageId &&
+                      effectiveOtherLastReadAt !== null &&
+                      effectiveOtherLastReadAt >= new Date(message.created_at).getTime();
+
+                    return (
+                      <div key={message.id}>
+                        {showDivider && (
+                          <div className="my-3 flex items-center justify-center">
+                            <span className="rounded-full bg-[--surface-secondary] px-3 py-0.5 text-[10px] font-medium text-[--muted]">
+                              {formatDayDivider(message.created_at)}
+                            </span>
+                          </div>
+                        )}
+                        <MessageItem
+                          message={message}
+                          isMe={isMe}
+                          isGroup={conversation.is_group}
+                          showHeader={!grouped || showDivider}
+                          meId={user?.id}
+                          onReply={setReplyTo}
+                          onEdit={setEditing}
+                          onDelete={handleDelete}
+                          onReact={handleReact}
+                        />
+                        {isSeen && (
+                          <p className="mt-0.5 pr-1 text-right text-[10px] font-medium text-[--accent] animate-in fade-in-50 duration-200">
+                            Seen
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <div ref={endRef} />
+                </>
+              )}
             </div>
           </div>
 
@@ -460,9 +470,10 @@ export default function ChatDetailPage() {
         </Card>
       </main>
 
-      {/* ── RIGHT RAIL: DETAILS ── */}
-      <aside className="col-span-3 hidden h-full flex-col overflow-hidden xl:flex">
-        <div className="sticky top-0 space-y-3">
+      {/* ── RIGHT RAIL: ACCORDION LAYOUT ── */}
+      <aside className="col-span-3 hidden h-full flex-col overflow-y-auto pr-1 [scrollbar-width:thin] xl:flex">
+        <div className="space-y-3">
+          {/* Main Context Card */}
           <Card className="flex flex-col items-center border border-[--surface-secondary] bg-[--surface] p-4 text-center shadow-sm">
             <ChatAvatar
               name={
@@ -476,9 +487,7 @@ export default function ChatDetailPage() {
                   : other?.avatar_url
               }
               isGroup={conversation.is_group}
-              online={
-                conversation.is_group ? undefined : isOnline(other?.id)
-              }
+              online={conversation.is_group ? undefined : otherIsOnline}
               size="lg"
               className="mb-3"
             />
@@ -489,47 +498,233 @@ export default function ChatDetailPage() {
             </h3>
             {!conversation.is_group && (
               <p className="mt-0.5 text-[11px] font-medium text-[--accent]">
-                @{other?.username}
+                @{other?.username || "username"}
               </p>
             )}
-            <p className="mt-2 rounded-full border border-[--surface-secondary] bg-[--surface-secondary] px-2.5 py-1 text-[10px] text-[--muted]">
+
+            {!conversation.is_group && (
+              <div className="mt-2 flex items-center gap-1 bg-[--surface-secondary] px-2 py-0.5 text-[11px] rounded text-[--foreground]">
+                <MessageCircle size={12} className="text-[--accent]" />
+                <span className="truncate max-w-[180px]">
+                  {other?.tagline || "No status set"}
+                </span>
+              </div>
+            )}
+
+            <p className="mt-2.5 rounded-full border border-[--surface-secondary] bg-[--surface-secondary] px-2.5 py-1 text-[10px] text-[--muted]">
               {conversation.is_group
                 ? `${conversation.participants_detail?.length ?? 0} members`
-                : isOnline(other?.id)
+                : otherIsOnline
                   ? "Active now"
                   : "Offline"}
             </p>
           </Card>
 
-          {conversation.is_group && (
-            <Card className="border border-[--surface-secondary] bg-[--surface] p-3 shadow-sm">
-              <p className="mb-2 px-1 text-[9px] font-bold uppercase tracking-wider text-[--muted]">
-                Members
-              </p>
-              <div className="space-y-1.5">
-                {conversation.participants_detail?.map((p) => (
-                  <div key={p.user.id} className="flex items-center gap-2">
-                    <ChatAvatar
-                      name={userDisplayName(p.user)}
-                      avatarUrl={p.user.avatar_url}
-                      online={isOnline(p.user.id)}
-                      size="sm"
-                    />
-                    <span className="flex-1 truncate text-xs text-[--foreground]">
-                      {userDisplayName(p.user)}
-                      {p.user.id === meId && " (you)"}
+          {/* Interactive Accordion Blocks */}
+          <Accordion variant="default" hideSeparator className="px-0">
+            {/* 1. About / Details Section */}
+            {!conversation.is_group ? (
+              <Accordion.Item id="details">
+                <Accordion.Heading>
+                  <Accordion.Trigger className="rounded-lg border border-[--surface-secondary] bg-[--surface] px-3 py-2 text-xs font-bold text-[--foreground]">
+                    <span className="flex items-center gap-2">
+                      <Info size={16} className="text-[--muted]" />
+                      User Info
                     </span>
-                    {p.is_admin && (
-                      <span className="text-[9px] font-semibold text-[--accent]">
-                        admin
-                      </span>
+                    <Accordion.Indicator />
+                  </Accordion.Trigger>
+                </Accordion.Heading>
+                <Accordion.Panel>
+                  <Accordion.Body>
+                    <div className="pb-3 text-left space-y-3">
+
+                      <div className="flex items-start gap-2 border-t border-[--surface-secondary]/50 pt-2">
+                        <FileText
+                          size={14}
+                          className="mt-0.5 shrink-0 text-[--muted]"
+                        />
+                        <div className="w-full min-w-0">
+                          <span className="block text-[9px] uppercase font-bold tracking-wider text-[--muted]">
+                            About Me
+                          </span>
+                          <p className="mt-0.5 whitespace-pre-wrap text-xs leading-relaxed text-[--foreground]">
+                            {other?.bio || "Hi! I am new here."}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </Accordion.Body>
+                </Accordion.Panel>
+              </Accordion.Item>
+            ) : (
+              <Accordion.Item id="members">
+                <Accordion.Heading>
+                  <Accordion.Trigger className="rounded-lg border border-[--surface-secondary] bg-[--surface] px-3 py-2 text-xs font-bold text-[--foreground]">
+                    <span className="flex items-center gap-2">
+                      <Users size={16} className="text-[--muted]" />
+                      Group Members
+                    </span>
+                    <Accordion.Indicator />
+                  </Accordion.Trigger>
+                </Accordion.Heading>
+                <Accordion.Panel>
+                  <Accordion.Body>
+                    <div className="max-h-48 space-y-2 overflow-y-auto pb-2 pr-1 [scrollbar-width:thin]">
+                      {conversation.participants_detail?.map((p) => (
+                        <div key={p.user.id} className="flex items-center gap-2">
+                          <ChatAvatar
+                            name={userDisplayName(p.user)}
+                            avatarUrl={p.user.avatar_url}
+                            online={checkUserOnlineStatus(p.user.id)}
+                            size="sm"
+                          />
+                          <span className="flex-1 truncate text-xs text-[--foreground]">
+                            {userDisplayName(p.user)}
+                            {p.user.id === meId && " (you)"}
+                          </span>
+                          {p.is_admin && (
+                            <span className="text-[9px] font-semibold text-[--accent]">
+                              admin
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </Accordion.Body>
+                </Accordion.Panel>
+              </Accordion.Item>
+            )}
+
+            {/* 2. Active Campus Accordion Block */}
+            {activeCampus && (
+              <Accordion.Item id="campus">
+                <Accordion.Heading>
+                  <Accordion.Trigger className="rounded-lg border border-[--surface-secondary] bg-[--surface] px-3 py-2 text-xs font-bold text-[--foreground]">
+                    <span className="flex items-center gap-2">
+                      <School size={16} className="text-[--muted]" />
+                      Active Campus
+                    </span>
+                    <Accordion.Indicator />
+                  </Accordion.Trigger>
+                </Accordion.Heading>
+                <Accordion.Panel>
+                  <Accordion.Body>
+                    <div className="space-y-3 pb-3 text-left">
+                      <div
+                        className="h-14 rounded-lg border border-[--surface-secondary] bg-cover bg-center"
+                        style={{
+                          backgroundImage: `linear-gradient(to bottom, rgba(0,0,0,0.1), rgba(0,0,0,0.5)), url('${activeCampus.banner_url || campusImage(activeCampus.name)}')`,
+                        }}
+                      />
+
+                      <div className="flex items-center gap-2.5">
+                        <CampusEmblem
+                          campus={activeCampus}
+                          className="size-9 shrink-0 rounded-md border border-[--surface-secondary] shadow-sm"
+                          textClassName="text-xs"
+                        />
+                        <div className="min-w-0">
+                          <span className="block truncate text-xs font-bold text-[--foreground]">
+                            {activeCampus.name}
+                          </span>
+                          {(activeCampus.city || activeCampus.state) && (
+                            <span className="mt-0.5 flex items-center gap-1 text-[10px] text-[--muted]">
+                              <MapPin size={10} />
+                              {[activeCampus.city, activeCampus.state]
+                                .filter(Boolean)
+                                .join(", ")}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {activeCampus.description && (
+                        <p className="line-clamp-3 border-t border-[--surface-secondary]/50 pt-2 text-xs leading-relaxed text-[--foreground]">
+                          {activeCampus.description}
+                        </p>
+                      )}
+
+                      <div className="flex items-center gap-1.5 rounded-md bg-[--surface-secondary]/50 p-2 text-[10px] text-[--muted]">
+                        <Users size={12} className="text-[--accent]" />
+                        <span>
+                          <strong>
+                            {activeCampus.students_count?.toLocaleString() ?? 0}
+                          </strong>{" "}
+                          registered students here
+                        </span>
+                      </div>
+                    </div>
+                  </Accordion.Body>
+                </Accordion.Panel>
+              </Accordion.Item>
+            )}
+
+            {/* 3. Preferences / Control Toggles Section */}
+            <Accordion.Item id="preferences">
+              <Accordion.Heading>
+                <Accordion.Trigger className="rounded-lg border border-[--surface-secondary] bg-[--surface] px-3 py-2 text-xs font-bold text-[--foreground]">
+                  <span className="flex items-center gap-2">
+                    <Bell size={16} className="text-[--muted]" />
+                    Chat Controls
+                  </span>
+                  <Accordion.Indicator />
+                </Accordion.Trigger>
+              </Accordion.Heading>
+              <Accordion.Panel>
+                <Accordion.Body>
+                  <div className="space-y-3 pb-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col text-left">
+                        <span className="text-xs font-medium text-[--foreground]">
+                          Mute Notifications
+                        </span>
+                        <span className="text-[10px] text-[--muted]">
+                          Silence highlights and alerts
+                        </span>
+                      </div>
+                      <Switch
+                        size="sm"
+                        isSelected={isMuted}
+                        onChange={(selected: boolean) => setIsMuted(selected)}
+                      >
+                        <Switch.Content>
+                          <Switch.Control>
+                            <Switch.Thumb />
+                          </Switch.Control>
+                        </Switch.Content>
+                      </Switch>
+                    </div>
+
+                    {!conversation.is_group && (
+                      <div className="flex items-center justify-between gap-2 border-t border-[--surface-secondary]/50 pt-3">
+                        <div className="flex flex-col text-left">
+                          <span className="text-xs font-medium text-danger">
+                            Block User
+                          </span>
+                          <span className="text-[10px] text-[--muted]">
+                            Prevent direct communication
+                          </span>
+                        </div>
+                        <Switch
+                          size="sm"
+                          isSelected={isBlocked}
+                          onChange={(selected: boolean) => setIsBlocked(selected)}
+                        >
+                          <Switch.Content>
+                            <Switch.Control>
+                              <Switch.Thumb />
+                            </Switch.Control>
+                          </Switch.Content>
+                        </Switch>
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </Card>
-          )}
+                </Accordion.Body>
+              </Accordion.Panel>
+            </Accordion.Item>
+          </Accordion>
 
+          {/* Guidelines Banner */}
           <Card className="flex flex-row items-start gap-3 rounded-xl border border-amber-500/10 bg-amber-500/5 p-3.5 shadow-none">
             <ShieldAlert size={16} className="mt-0.5 shrink-0 text-amber-500" />
             <div className="min-w-0">
@@ -550,12 +745,6 @@ export default function ChatDetailPage() {
         onOpenChange={setAddPeopleOpen}
         conversation={conversation}
         onAdded={() => void refresh()}
-      />
-
-      <ChatThemeModal
-        conversationId={conversationId}
-        isOpen={themeOpen}
-        onOpenChange={setThemeOpen}
       />
     </div>
   );

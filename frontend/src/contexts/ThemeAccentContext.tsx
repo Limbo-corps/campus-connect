@@ -18,15 +18,18 @@ function applyHue(hue: number) {
 }
 
 export function ThemeAccentProvider({ children }: { children: ReactNode }) {
-  const [hue, setHueState] = useState<number>(DEFAULT_HUE)
-
-  // hydrate from localStorage (the inline <head> script already applied it pre-paint)
-  useEffect(() => {
+  const [hue, setHueState] = useState<number>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) setHueState(parseFloat(saved))
-    } catch { /* ignore */ }
-  }, [])
+      return saved ? parseFloat(saved) : DEFAULT_HUE
+    } catch {
+      return DEFAULT_HUE
+    }
+  })
+
+  useEffect(() => {
+    applyHue(hue)
+  }, [hue])
 
   const setHue = useCallback((next: number) => {
     setHueState(next)

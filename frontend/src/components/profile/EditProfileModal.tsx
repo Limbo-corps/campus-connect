@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Card, Button, Input, TextArea, Tabs, Avatar, Chip, Toast } from '@heroui/react'
 import { X, Shuffle, Check, Sparkles } from 'lucide-react'
@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { AVATAR_STYLES, SEED_POOL, dicebearUrl, isDicebear } from '@/lib/avatars'
 import { PROFILE_TEMPLATES } from '@/lib/templates'
 import { IMG_FADE } from '@/lib/banners'
+import type { User } from '@/types'
 
 interface Props {
   open: boolean
@@ -16,43 +17,62 @@ interface Props {
 
 export default function EditProfileModal({ open, onClose }: Props) {
   const { user, updateProfile } = useAuth()
-  const [mounted, setMounted] = useState(false)
+  if (!open || typeof document === 'undefined') return null
+
+  return (
+    <EditProfileModalBody
+      key={`${open ? 'open' : 'closed'}-${user?.id ?? 'guest'}`}
+      user={user}
+      updateProfile={updateProfile}
+      onClose={onClose}
+    />
+  )
+}
+
+function EditProfileModalBody({
+  user,
+  updateProfile,
+  onClose,
+}: {
+  user: User | null
+  updateProfile(data: {
+    first_name?: string
+    last_name?: string
+    tagline?: string
+    bio?: string
+    avatar_url?: string
+    profile_template?: string
+  }): Promise<void>
+  onClose(): void
+}) {
   const [saving, setSaving] = useState(false)
 
-  const [firstName, setFirstName] = useState('')
-  const [lastName, setLastName] = useState('')
-  const [tagline, setTagline] = useState('')
-  const [bio, setBio] = useState('')
-  const [avatarStyle, setAvatarStyle] = useState('adventurer')
-  const [avatarSeed, setAvatarSeed] = useState('')
-  const [template, setTemplate] = useState('aurora')
-
-  useEffect(() => { setMounted(true) }, [])
-
-  // hydrate from user whenever the modal opens
-  useEffect(() => {
-    if (!open || !user) return
-    setFirstName(user.first_name ?? '')
-    setLastName(user.last_name ?? '')
-    setTagline(user.tagline ?? '')
-    setBio(user.bio ?? '')
-    setTemplate(user.profile_template || 'aurora')
-    // parse existing dicebear url → style + seed, else sensible defaults
+  const [firstName, setFirstName] = useState(() => user?.first_name ?? '')
+  const [lastName, setLastName] = useState(() => user?.last_name ?? '')
+  const [tagline, setTagline] = useState(() => user?.tagline ?? '')
+  const [bio, setBio] = useState(() => user?.bio ?? '')
+  const [avatarStyle, setAvatarStyle] = useState(() => {
+    if (!user || !isDicebear(user.avatar_url)) return 'adventurer'
+    try {
+      const u = new URL(user.avatar_url as string)
+      return u.pathname.split('/')[2] ?? 'adventurer'
+    } catch {
+      return 'adventurer'
+    }
+  })
+  const [avatarSeed, setAvatarSeed] = useState(() => {
+    if (!user) return 'campus'
     if (isDicebear(user.avatar_url)) {
       try {
         const u = new URL(user.avatar_url as string)
-        const style = u.pathname.split('/')[2] ?? 'adventurer'
-        setAvatarStyle(style)
-        setAvatarSeed(u.searchParams.get('seed') ?? user.username)
+        return u.searchParams.get('seed') ?? user.username
       } catch {
-        setAvatarStyle('adventurer')
-        setAvatarSeed(user.username)
+        return user.username
       }
-    } else {
-      setAvatarStyle('adventurer')
-      setAvatarSeed(user.username || 'campus')
     }
-  }, [open, user])
+    return user.username || 'campus'
+  })
+  const [template, setTemplate] = useState(() => user?.profile_template || 'aurora')
 
   const previewUrl = dicebearUrl(avatarStyle, avatarSeed)
 
@@ -80,8 +100,6 @@ export default function EditProfileModal({ open, onClose }: Props) {
       setSaving(false)
     }
   }
-
-  if (!open) return null
 
   const el = (
     <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
@@ -249,5 +267,5 @@ export default function EditProfileModal({ open, onClose }: Props) {
     </div>
   )
 
-  return mounted ? createPortal(el, document.body) : null
+  return createPortal(el, document.body)
 }

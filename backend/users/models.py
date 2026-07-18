@@ -5,6 +5,7 @@ import uuid
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models import Q
 
 
 class User(AbstractUser):
@@ -44,24 +45,30 @@ class User(AbstractUser):
 
     def is_following_user(self, other: "User") -> bool:
         """True if this user follows ``other``."""
-        return self.following.filter(pk=other.pk).exists()
+        return Follow.objects.filter(follower=self, following=other).exists()
 
     def is_mutual_with(self, other: "User") -> bool:
         """True only when both users follow each other (DM prerequisite)."""
         if self.pk == other.pk:
             return False
-        return (
-            self.following.filter(pk=other.pk).exists()
-            and self.followers.filter(pk=other.pk).exists()
-        )
+        return self.is_following_user(other) and Follow.objects.filter(
+            follower=other,
+            following=self,
+        ).exists()
 
-    def mutuals(self):
+    def mutuals(self) -> models.QuerySet["User"]:
         """Users who follow this user AND are followed back by this user."""
-        return (
-            User.objects.filter(pk__in=self.following.values_list("pk", flat=True))
-            .filter(pk__in=self.followers.values_list("pk", flat=True))
-            .order_by("first_name", "username")
+        follower_ids = Follow.objects.filter(following=self).values_list(
+            "follower_id",
+            flat=True,
         )
+        following_ids = Follow.objects.filter(follower=self).values_list(
+            "following_id",
+            flat=True,
+        )
+        return User.objects.filter(
+            Q(pk__in=follower_ids) & Q(pk__in=following_ids),
+        ).order_by("first_name", "username")
 
 
 class Follow(models.Model):
