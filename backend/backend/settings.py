@@ -110,9 +110,15 @@ ASGI_APPLICATION = "backend.asgi.application"
 REDIS_URL = os.getenv("REDIS_URL", "")
 
 if REDIS_URL:
+    # Use the pub/sub layer, not channels_redis.core.RedisChannelLayer. The
+    # core layer's blocking BZPOPMIN receive loop raises
+    # `redis.exceptions.TimeoutError: Timeout reading from ...` when the Redis
+    # TCP connection idles (common on Docker networks that drop idle sockets),
+    # which kills the consumer and makes WebSockets disconnect/reconnect in a
+    # loop. The pub/sub layer doesn't have this problem.
     CHANNEL_LAYERS = {
         "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "BACKEND": "channels_redis.pubsub.RedisPubSubChannelLayer",
             "CONFIG": {"hosts": [REDIS_URL]},
         }
     }
