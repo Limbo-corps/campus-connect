@@ -9,6 +9,7 @@ signals that don't need persistence: typing indicators and presence.
 """
 
 import json
+import logging
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
@@ -16,6 +17,8 @@ from django.core.cache import cache
 from django.core.serializers.json import DjangoJSONEncoder
 
 from chat.realtime import user_group
+
+logger = logging.getLogger(__name__)
 
 PRESENCE_KEY = "chat:online:{user_id}"
 PRESENCE_TTL = 60 * 60  # seconds; refreshed on every (dis)connect
@@ -26,21 +29,29 @@ def _register_connection(user_id) -> bool:
     """Increment the user's live-connection count. Returns True if they just
     transitioned from offline -> online."""
     key = PRESENCE_KEY.format(user_id=user_id)
-    count = cache.get(key, 0) + 1
-    cache.set(key, count, PRESENCE_TTL)
-    return count == 1
+    try:
+        count = cache.get(key, 0) + 1
+        cache.set(key, count, PRESENCE_TTL)
+        return count == 1
+    except Exception as exc:
+        logger.warning("Presence cache unavailable while registering %s: %s", user_id, exc)
+        return False
 
 
 @database_sync_to_async
 def _unregister_connection(user_id) -> bool:
     """Decrement the count. Returns True if the user is now fully offline."""
     key = PRESENCE_KEY.format(user_id=user_id)
-    count = max(0, cache.get(key, 0) - 1)
-    if count:
-        cache.set(key, count, PRESENCE_TTL)
-    else:
-        cache.delete(key)
-    return count == 0
+    try:
+        count = max(0, cache.get(key, 0) - 1)
+        if count:
+            cache.set(key, count, PRESENCE_TTL)
+        else:
+            cache.delete(key)
+        return count == 0
+    except Exception as exc:
+        logger.warning("Presence cache unavailable while unregistering %s: %s", user_id, exc)
+        return False
 
 
 @database_sync_to_async
@@ -64,11 +75,15 @@ def _contact_ids(user_id):
 
 @database_sync_to_async
 def _online_among(user_ids):
-    return [
-        str(uid)
-        for uid in user_ids
-        if cache.get(PRESENCE_KEY.format(user_id=uid), 0) > 0
-    ]
+    try:
+        return [
+            str(uid)
+            for uid in user_ids
+            if cache.get(PRESENCE_KEY.format(user_id=uid), 0) > 0
+        ]
+    except Exception as exc:
+        logger.warning("Presence cache unavailable while loading online contacts: %s", exc)
+        return []
 
 
 @database_sync_to_async
@@ -90,7 +105,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         self.user = user
         self.group_name = user_group(user.id)
 
-        await self.channel_layer.group_add(self.group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+        except Exception as exc:
+            logger.warning("WebSocket channel layer unavailable; continuing without group join: %s", exc)
+
         await self.accept()
 
         became_online = await _register_connection(user.id)
@@ -108,7 +127,10 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         if not hasattr(self, "user"):
             return
 
-        await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        try:
+            await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        except Exception as exc:
+            logger.warning("WebSocket channel layer unavailable during disconnect: %s", exc)
 
         now_offline = await _unregister_connection(self.user.id)
         if now_offline:
@@ -140,13 +162,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             "is_typing": is_typing,
         }
         for uid in contacts:
-            await self.channel_layer.group_send(
-                user_group(uid),
-                {
-                    "type": "chat.event",
-                    "message": {"event": "typing", "data": payload},
-                },
-            )
+            try:
+                await self.channel_layer.group_send(
+                    user_group(uid),
+                    {
+                        "type": "chat.event",
+                        "message": {"event": "typing", "data": payload},
+                    },
+                )
+            except Exception as exc:
+                logger.warning("Failed to send typing event via channel layer: %s", exc)
 
     @database_sync_to_async
     def _conversation_others(self, conversation_id):
@@ -161,13 +186,16 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
     async def _broadcast_presence(self, contact_ids, *, is_online):
         payload = {"user_id": str(self.user.id), "is_online": is_online}
         for uid in contact_ids:
-            await self.channel_layer.group_send(
-                user_group(uid),
-                {
-                    "type": "chat.event",
-                    "message": {"event": "presence.update", "data": payload},
-                },
-            )
+            try:
+                await self.channel_layer.group_send(
+                    user_group(uid),
+                    {
+                        "type": "chat.event",
+                        "message": {"event": "presence.update", "data": payload},
+                    },
+                )
+            except Exception as exc:
+                logger.warning("Failed to send presence event via channel layer: %s", exc)
 
     # Handler for events pushed via chat.realtime.send_to_users
     async def chat_event(self, event):

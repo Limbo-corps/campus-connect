@@ -1,60 +1,69 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { Card, Button, Chip } from '@heroui/react'
-import { MapPin, Users, CheckCircle2 } from 'lucide-react'
-import { Toast } from '@heroui/react'
-import api from '@/lib/api'
-import type { Campus } from '@/types'
-import { useAuth } from '@/contexts/AuthContext'
-import { campusImage, IMG_FADE } from '@/lib/banners'
-import CampusEmblem from '@/components/campus/CampusEmblem'
+import { useState } from "react";
+import { Card, Button, Chip } from "@heroui/react";
+import { MapPin, Users, CheckCircle2 } from "lucide-react";
+import { Toast } from "@heroui/react";
+import type { Campus } from "@/types";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCampuses } from "@/hooks/useCampuses"; // Adjust path based on your file structure
+import { campusImage, IMG_FADE } from "@/lib/banners";
+import CampusEmblem from "@/components/campus/CampusEmblem";
 
 interface Props {
-  campus: Campus
-  currentCampusId?: string
-  onMutate(): void
+  campus: Campus;
+  currentCampusId?: string;
+  onMutate(): void;
 }
 
-export default function CampusCard({ campus, currentCampusId, onMutate }: Props) {
-  const { refreshUser } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const isMember = currentCampusId === campus.id
+export default function CampusCard({
+  campus,
+  currentCampusId,
+  onMutate,
+}: Props) {
+  const { refreshUser } = useAuth();
+  const { joinCampus, leaveCampus } = useCampuses();
+  const [actionLoading, setActionLoading] = useState(false);
+  const isMember = currentCampusId === campus.id;
 
-  const join = async () => {
-    setLoading(true)
+  const handleJoin = async () => {
+    setActionLoading(true);
     try {
-      await api.post(`/campuses/${campus.id}/join/`)
-      Toast.toast.success(`Joined ${campus.name}!`)
-      await refreshUser()
-      onMutate()
+      await joinCampus(campus.id);
+      Toast.toast.success(`Joined ${campus.name}!`);
+      await refreshUser();
+      onMutate();
     } catch {
-      Toast.toast.danger('Failed to join campus')
+      Toast.toast.danger("Failed to join campus");
     } finally {
-      setLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
-  const leave = async () => {
-    setLoading(true)
+  const handleLeave = async () => {
+    setActionLoading(true);
     try {
-      await api.post('/campuses/leave/')
-      Toast.toast.success(`Left ${campus.name}`)
-      await refreshUser()
-      onMutate()
+      await leaveCampus();
+      Toast.toast.success(`Left ${campus.name}`);
+      await refreshUser();
+      onMutate();
     } catch {
-      Toast.toast.danger('Failed to leave campus')
+      Toast.toast.danger("Failed to leave campus");
     } finally {
-      setLoading(false)
+      setActionLoading(false);
     }
-  }
+  };
 
   return (
-    <Card className={`group flex flex-col gap-0 border shadow-sm transition-all hover:shadow-md ${isMember ? 'border-[--accent]/40' : 'border-[--surface-secondary]'}`}>
+    <Card
+      className={`group flex flex-col gap-0 border shadow-sm transition-all hover:shadow-md ${isMember ? "border-[--accent]/40" : "border-[--surface-secondary]"}`}
+    >
       {/* Real campus photo when set, else a themed fallback */}
       <div
         className="h-20 rounded-t-3xl bg-cover bg-center"
-        style={{ backgroundImage: `${IMG_FADE}, url('${campus.banner_url || campusImage(campus.name)}')` }}
+        style={{
+          backgroundImage: `${IMG_FADE}, url('${campus.banner_url || campusImage(campus.name)}')`,
+        }}
       />
 
       {/* Avatar initial + chip */}
@@ -65,7 +74,12 @@ export default function CampusCard({ campus, currentCampusId, onMutate }: Props)
           textClassName="text-sm"
         />
         {isMember && (
-          <Chip size="sm" color="success" variant="soft" className="text-[10px]">
+          <Chip
+            size="sm"
+            color="success"
+            variant="soft"
+            className="text-[10px]"
+          >
             <CheckCircle2 size={10} className="mr-0.5 inline" />
             Joined
           </Chip>
@@ -77,7 +91,7 @@ export default function CampusCard({ campus, currentCampusId, onMutate }: Props)
         {(campus.city || campus.state) && (
           <Card.Description className="flex items-center gap-1 text-xs">
             <MapPin size={10} />
-            {[campus.city, campus.state].filter(Boolean).join(', ')}
+            {[campus.city, campus.state].filter(Boolean).join(", ")}
           </Card.Description>
         )}
         {campus.description && (
@@ -94,14 +108,18 @@ export default function CampusCard({ campus, currentCampusId, onMutate }: Props)
         </span>
         <Button
           size="sm"
-          variant={isMember ? 'ghost' : 'outline'}
-          isDisabled={loading}
-          onPress={isMember ? leave : join}
-          className={!isMember ? 'border-[--accent] text-[--accent] hover:bg-[--accent] hover:text-white' : ''}
+          variant={isMember ? "ghost" : "outline"}
+          isDisabled={actionLoading}
+          onPress={isMember ? handleLeave : handleJoin}
+          className={
+            !isMember
+              ? "border-[--accent] text-[--accent] hover:bg-[--accent] hover:text-white"
+              : ""
+          }
         >
-          {loading ? '…' : isMember ? 'Leave' : 'Join'}
+          {actionLoading ? "…" : isMember ? "Leave" : "Join"}
         </Button>
       </Card.Footer>
     </Card>
-  )
+  );
 }

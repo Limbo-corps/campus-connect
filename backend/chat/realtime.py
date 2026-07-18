@@ -7,10 +7,13 @@ Events are dispatched to the union of participant groups for a conversation.
 """
 
 import json
+import logging
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.core.serializers.json import DjangoJSONEncoder
+
+logger = logging.getLogger(__name__)
 
 
 def user_group(user_id) -> str:
@@ -37,10 +40,13 @@ def send_to_users(user_ids, event_type: str, payload: dict) -> None:
     message = {"event": event_type, "data": _json_safe(payload)}
 
     for user_id in set(user_ids):
-        async_to_sync(layer.group_send)(
-            user_group(user_id),
-            {"type": "chat.event", "message": message},
-        )
+        try:
+            async_to_sync(layer.group_send)(
+                user_group(user_id),
+                {"type": "chat.event", "message": message},
+            )
+        except Exception as exc:
+            logger.warning("Failed to publish realtime event to %s: %s", user_id, exc)
 
 
 def broadcast_to_conversation(conversation, event_type: str, payload: dict) -> None:
