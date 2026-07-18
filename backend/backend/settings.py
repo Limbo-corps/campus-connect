@@ -1,3 +1,7 @@
+
+REST_FRAMEWORK = {
+    'EXCEPTION_HANDLER': 'core.exceptions.custom_api_exception_handler',
+}
 """
 Django settings for backend project.
 
@@ -11,6 +15,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -113,7 +118,20 @@ if REDIS_URL:
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {"hosts": [REDIS_URL]},
+            "CONFIG": {
+                # Use a dict host entry so redis-py connection kwargs can be passed.
+                # Increase socket_timeout and enable retry_on_timeout so transient
+                # delays don't immediately raise TimeoutError and drop websocket
+                # connections. These values are conservative for a dev environment.
+                "hosts": [
+                    {
+                        "address": REDIS_URL,
+                        "socket_connect_timeout": 10,
+                        "socket_timeout": 60,
+                        "retry_on_timeout": True,
+                    }
+                ],
+            },
         }
     }
 else:
@@ -126,17 +144,31 @@ else:
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
+#
+# Production and containerized development use PostgreSQL. Local check/test runs
+# should still work without a database host, so fall back to SQLite when no
+# explicit Postgres host is configured.
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "")
+RUNNING_TESTS = any(arg in {"test", "pytest"} for arg in sys.argv)
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB"),
-        "USER": os.getenv("POSTGRES_USER"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
-        "HOST": os.getenv("POSTGRES_HOST"),
-        "PORT": os.getenv("POSTGRES_PORT"),
+if POSTGRES_HOST and not RUNNING_TESTS:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.getenv("POSTGRES_DB"),
+            "USER": os.getenv("POSTGRES_USER"),
+            "PASSWORD": os.getenv("POSTGRES_PASSWORD"),
+            "HOST": POSTGRES_HOST,
+            "PORT": os.getenv("POSTGRES_PORT"),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -152,6 +184,15 @@ REST_FRAMEWORK = {
         "user": "400/min",
     },
 }
+
+# In DEBUG (local development) increase throttle limits to avoid accidental 429s
+# from aggressive client-side polling or dev browsers. Keep production limits
+# conservative.
+if DEBUG:
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {
+        "anon": "1000/min",
+        "user": "5000/min",
+    }
 
 # Cache — backs real-time presence tracking, so it MUST be shared across
 # processes/workers in production. When REDIS_URL is set we use Redis (the same
