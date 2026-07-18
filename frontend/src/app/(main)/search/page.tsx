@@ -81,8 +81,8 @@ export default function SearchPage() {
           `${student.first_name || ""} ${student.last_name || ""}`
             .toLowerCase()
             .includes(query.toLowerCase()) ||
-          student.major?.toLowerCase().includes(query.toLowerCase()) ||
-          student.headline?.toLowerCase().includes(query.toLowerCase());
+          student.bio?.toLowerCase().includes(query.toLowerCase()) ||
+          student.tagline?.toLowerCase().includes(query.toLowerCase());
 
       const matchesCampus =
         selectedCampusFilter === "all"
@@ -225,8 +225,7 @@ export default function SearchPage() {
                     <HelpCircle size={12} className="text-[--accent]" /> Search
                     Tip
                   </span>
-                  Refine network matches instantly by typing specific majors,
-                  personal taglines, handles, or names.
+                  Refine network matches instantly by typing personal taglines, handles, or names.
                 </div>
               </div>
             </div>
@@ -344,17 +343,9 @@ export default function SearchPage() {
                             @{student.username}
                           </p>
 
-                          {student.major && (
-                            <p className="mt-2.5 text-xs font-bold text-[--accent] truncate flex items-center gap-1">
-                              <Sparkles size={12} className="shrink-0" />{" "}
-                              {student.major}
-                            </p>
-                          )}
 
                           <p className="mt-2 line-clamp-2 text-xs text-[--muted] leading-relaxed min-h-9">
-                            {student.headline ||
-                              student.bio ||
-                              "No bio description set yet."}
+                            {student.bio || "No bio description set yet."}
                           </p>
                         </div>
 

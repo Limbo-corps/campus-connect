@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Card, Button, Input, TextArea, Toast, Accordion } from '@heroui/react'
 import { X, LifeBuoy, Send, CheckCircle2 } from 'lucide-react'
 import api from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import type { User } from '@/types'
 
 interface Props {
   open: boolean
@@ -21,22 +22,26 @@ const FAQS = [
 
 export default function HelpModal({ open, onClose }: Props) {
   const { user } = useAuth()
-  const [mounted, setMounted] = useState(false)
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
+  if (!open || typeof document === 'undefined') return null
+
+  return (
+    <HelpModalBody
+      key={`${open ? 'open' : 'closed'}-${user?.id ?? 'guest'}`}
+      user={user}
+      onClose={onClose}
+    />
+  )
+}
+
+function HelpModalBody({ user, onClose }: { user: User | null; onClose(): void }) {
+  const [name, setName] = useState(() => {
+    if (!user) return ''
+    return `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.username
+  })
+  const [email, setEmail] = useState(() => user?.email ?? '')
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
-
-  useEffect(() => { setMounted(true) }, [])
-
-  // prefill from the signed-in user when opened
-  useEffect(() => {
-    if (open && user) {
-      setName(`${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() || user.username)
-      setEmail(user.email ?? '')
-    }
-  }, [open, user])
 
   const submit = async () => {
     if (!message.trim()) return
@@ -57,8 +62,6 @@ export default function HelpModal({ open, onClose }: Props) {
   }
 
   const close = () => { setSent(false); onClose() }
-
-  if (!mounted || !open) return null
 
   return createPortal(
     <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">

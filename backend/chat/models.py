@@ -230,4 +230,4 @@ class MessageReaction(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.user} • {self.emoji} • {self.message_id}"
+        return f"{self.user} • {self.emoji} • {self.message.pk}"

@@ -8,9 +8,13 @@ export interface User {
   avatar_url: string;
   profile_template: string;
   tagline: string;
-  campus: string | null;
-  major?: string;
-  headline?: string;
+  campus: string | null; // Stores the foreign key ID string (or null)
+
+  // Timestamps from AbstractUser / Explicit fields
+  created_at: string;
+  updated_at: string;
+
+  // Annotated / API computed properties
   followers_count?: number;
   following_count?: number;
   /** Whether the requesting user follows this user. */
@@ -26,4 +30,5 @@ export interface ProfileUpdate {
   avatar_url?: string;
   profile_template?: string;
   tagline?: string;
+  campus?: string | null;
 }

@@ -1,6 +1,5 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Card, Button, Chip } from '@heroui/react'
 import { X, Rss, Building2, Heart, MessageCircle, Palette, Sparkles } from 'lucide-react'
@@ -20,9 +19,7 @@ const FEATURES = [
 ]
 
 export default function AboutModal({ open, onClose, onOpenHelp }: Props) {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => { setMounted(true) }, [])
-  if (!mounted || !open) return null
+  if (!open || typeof document === 'undefined') return null
 
   return createPortal(
     <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">

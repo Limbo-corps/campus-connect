@@ -6,6 +6,7 @@ token is passed as a ``?token=<jwt>`` query-string parameter. This middleware
 validates it and populates ``scope["user"]`` (or ``AnonymousUser`` on failure).
 """
 
+from typing import Any, cast
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async
@@ -22,9 +23,9 @@ def get_user_from_token(token: str):
     from rest_framework_simplejwt.tokens import AccessToken
 
     try:
-        access_token = AccessToken(token)
+        access_token = AccessToken(token)  # pyright: ignore[reportArgumentType]
         user_id = access_token["user_id"]
-        return User.objects.get(id=user_id)
+        return cast(Any, User.objects.get(id=user_id))
     except (TokenError, KeyError, User.DoesNotExist):
         return AnonymousUser()
 
@@ -36,8 +37,8 @@ class JWTAuthMiddleware(BaseMiddleware):
         token = params.get("token", [None])[0]
 
         if token:
-            scope["user"] = await get_user_from_token(token)
+            scope["user"] = cast(Any, await get_user_from_token(token))
         else:
-            scope["user"] = AnonymousUser()
+            scope["user"] = cast(Any, AnonymousUser())
 
         return await super().__call__(scope, receive, send)

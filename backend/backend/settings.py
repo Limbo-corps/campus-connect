@@ -104,6 +104,9 @@ ASGI_APPLICATION = "backend.asgi.application"
 # Uses Redis when REDIS_URL is set (production / docker), otherwise falls back
 # to the in-memory layer so the app runs with `runserver` in local dev without
 # a Redis instance. The in-memory layer is single-process only (not for prod).
+#
+# If Redis is configured but temporarily unavailable, the chat consumer and
+# realtime helpers now degrade gracefully instead of crashing the connection.
 REDIS_URL = os.getenv("REDIS_URL", "")
 
 if REDIS_URL:

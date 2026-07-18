@@ -1,5 +1,6 @@
-from django.contrib.auth import get_user_model
 from django.db import transaction
+
+from users.models import User
 
 from chat.exceptions import (
     AlreadyConversationParticipant,
@@ -9,8 +10,6 @@ from chat.exceptions import (
 )
 from chat.models import Conversation, ConversationParticipant
 from chat.selectors.conversation_selector import ConversationSelector
-
-User = get_user_model()
 
 
 class ConversationService:
