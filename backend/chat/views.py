@@ -57,7 +57,9 @@ def _get_conversation(conversation_id) -> Conversation:
         raise ConversationNotFound()
 
 
-def _require_participant(conversation: Conversation, user: User) -> ConversationParticipant:
+def _require_participant(
+    conversation: Conversation, user: User
+) -> ConversationParticipant:
     try:
         return conversation.memberships.get(user=user)  # type: ignore[reportReturnType]
     except ConversationParticipant.DoesNotExist:
@@ -312,9 +314,7 @@ class MessagesView(APIView):
             return _error(exc)
 
         message = MessageSelector.get_message(message.id)
-        data = MessageSerializer(
-            message, context=_serializer_context(request)
-        ).data
+        data = MessageSerializer(message, context=_serializer_context(request)).data
 
         async_to_sync(ChatDispatcher.message_created)(message)
         async_to_sync(ChatDispatcher.conversation_updated)(conversation)
@@ -347,9 +347,7 @@ class MessageDetailView(APIView):
             return _error(exc)
 
         message = MessageSelector.get_message(message.id)
-        data = MessageSerializer(
-            message, context=_serializer_context(request)
-        ).data
+        data = MessageSerializer(message, context=_serializer_context(request)).data
 
         async_to_sync(ChatDispatcher.message_updated)(message)
         conversation = ConversationSelector.get_conversation(message.conversation_id)  # type: ignore[reportReturnType]
@@ -364,15 +362,14 @@ class MessageDetailView(APIView):
             return _error(exc)
 
         message = MessageSelector.get_message(message.id)
-        data = MessageSerializer(
-            message, context=_serializer_context(request)
-        ).data
+        data = MessageSerializer(message, context=_serializer_context(request)).data
         async_to_sync(ChatDispatcher.message_deleted)(message)
         return Response(data)
 
 
 class ReactionsView(APIView):
     """Toggle an emoji reaction on a message."""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request, message_id):
@@ -395,9 +392,7 @@ class ReactionsView(APIView):
             return _error(exc)
 
         message = MessageSelector.get_message(message.id)
-        data = MessageSerializer(
-            message, context=_serializer_context(request)
-        ).data
+        data = MessageSerializer(message, context=_serializer_context(request)).data
         async_to_sync(ChatDispatcher.message_updated)(message)
         return Response(data)
 
@@ -417,7 +412,9 @@ class MarkReadView(APIView):
                     uuid.UUID(str(message_id))
                 except (ValueError, TypeError):
                     return Response(
-                        {"detail": "Invalid message identifier format. Temporary message IDs cannot be marked read."},
+                        {
+                            "detail": "Invalid message identifier format. Temporary message IDs cannot be marked read."
+                        },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -455,7 +452,7 @@ class MarkReadView(APIView):
                 last_read_message_id=str(message.id),
                 last_read_at_iso=timezone.now().isoformat(),
             )
-        except Exception as exc:
+        except Exception:
             # Log broadcasting failures so they can be diagnosed; do not fail
             # the API call for end-users.
             logger = logging.getLogger(__name__)

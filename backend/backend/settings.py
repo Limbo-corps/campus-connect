@@ -1,7 +1,6 @@
-
-REST_FRAMEWORK = {
-    'EXCEPTION_HANDLER': 'core.exceptions.custom_api_exception_handler',
-}
+# REST_FRAMEWORK = {
+#     "EXCEPTION_HANDLER": "core.exceptions.custom_api_exception_handler",
+# }
 """
 Django settings for backend project.
 
@@ -196,6 +195,7 @@ REST_FRAMEWORK = {
         "anon": "40/min",
         "user": "400/min",
     },
+    "EXCEPTION_HANDLER": "core.exceptions.custom_api_exception_handler"
 }
 
 # In DEBUG (local development) increase throttle limits to avoid accidental 429s

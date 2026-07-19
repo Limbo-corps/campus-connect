@@ -144,9 +144,7 @@ class MessageRestTests(TestCase):
         self.alice = make_user("alice")
         self.bob = make_user("bob")
         make_mutual(self.alice, self.bob)
-        self.conv = ConversationService.create_direct_conversation(
-            self.alice, self.bob
-        )
+        self.conv = ConversationService.create_direct_conversation(self.alice, self.bob)
         self.client = APIClient()
         self.client.force_authenticate(self.alice)
 

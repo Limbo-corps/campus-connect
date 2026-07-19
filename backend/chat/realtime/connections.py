@@ -6,6 +6,7 @@ from users.models import User
 
 logger = logging.getLogger(__name__)
 
+
 class ConnectionManager:
     @staticmethod
     async def _safe_group_op(op, group: str, channel_name: str) -> None:
@@ -24,7 +25,9 @@ class ConnectionManager:
             try:
                 await op(group, channel_name)
                 return
-            except Exception as exc:  # narrow-catch is fine here; we don't want exceptions to close WS
+            except (
+                Exception
+            ) as exc:  # narrow-catch is fine here; we don't want exceptions to close WS
                 logger.warning(
                     "Channel layer operation %s failed for %s (attempt %d): %s",
                     getattr(op, "__name__", str(op)),
@@ -33,9 +36,13 @@ class ConnectionManager:
                     exc,
                 )
                 # small exponential backoff
-                await asyncio.sleep(0.2 * (2 ** attempt))
+                await asyncio.sleep(0.2 * (2**attempt))
 
-        logger.error("Channel layer operation %s failed for %s after retries", getattr(op, "__name__", str(op)), group)
+        logger.error(
+            "Channel layer operation %s failed for %s after retries",
+            getattr(op, "__name__", str(op)),
+            group,
+        )
 
     @staticmethod
     async def connect_user(user: User, channel_name: str) -> None:

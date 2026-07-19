@@ -7,27 +7,57 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('chat', '0001_initial'),
+        ("chat", "0001_initial"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='MessageReaction',
+            name="MessageReaction",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('emoji', models.CharField(max_length=32)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('message', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='reactions', to='chat.message')),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='message_reactions', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("emoji", models.CharField(max_length=32)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "message",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="reactions",
+                        to="chat.message",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="message_reactions",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'db_table': 'chat_message_reactions',
-                'ordering': ['created_at'],
-                'indexes': [models.Index(fields=['message'], name='chat_messag_message_36a8e6_idx')],
-                'constraints': [models.UniqueConstraint(fields=('message', 'user', 'emoji'), name='unique_message_reaction')],
+                "db_table": "chat_message_reactions",
+                "ordering": ["created_at"],
+                "indexes": [
+                    models.Index(
+                        fields=["message"], name="chat_messag_message_36a8e6_idx"
+                    )
+                ],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("message", "user", "emoji"),
+                        name="unique_message_reaction",
+                    )
+                ],
             },
         ),
     ]

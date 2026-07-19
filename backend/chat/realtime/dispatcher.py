@@ -35,14 +35,17 @@ class ChatDispatcher:
     @staticmethod
     async def conversation_created(conversation: Conversation) -> None:
         """Broadcast a new conversation."""
+
         # Wrap ORM relationships and serialization into an isolated sync function
         def _get_payload_and_participants():
             return (
                 cast(dict[str, Any], ConversationSerializer(conversation).data),
-                list(conversation.participants.all())
+                list(conversation.participants.all()),
             )
 
-        payload, participants = await sync_to_async(_get_payload_and_participants, thread_sensitive=True)()
+        payload, participants = await sync_to_async(
+            _get_payload_and_participants, thread_sensitive=True
+        )()
 
         await Broadcaster.send_to_users(
             users=participants,
@@ -53,6 +56,7 @@ class ChatDispatcher:
     @staticmethod
     async def conversation_updated(conversation: Conversation) -> None:
         """Broadcast updated conversation details."""
+
         def _serialize():
             return cast(dict[str, Any], ConversationSerializer(conversation).data)
 
@@ -96,13 +100,16 @@ class ChatDispatcher:
     @staticmethod
     async def message_created(message: Message) -> None:
         """Broadcast a new message."""
+
         def _serialize_and_get_conversation():
             return (
                 cast(dict[str, Any], MessageSerializer(message).data),
-                message.conversation
+                message.conversation,
             )
 
-        payload, conversation = await sync_to_async(_serialize_and_get_conversation, thread_sensitive=True)()
+        payload, conversation = await sync_to_async(
+            _serialize_and_get_conversation, thread_sensitive=True
+        )()
         participants = await ChatDispatcher._get_participants(conversation)
 
         await Broadcaster.send_to_conversation(
@@ -119,13 +126,16 @@ class ChatDispatcher:
     @staticmethod
     async def message_updated(message: Message) -> None:
         """Broadcast an updated message."""
+
         def _serialize_and_get_conversation():
             return (
                 cast(dict[str, Any], MessageSerializer(message).data),
-                message.conversation
+                message.conversation,
             )
 
-        payload, conversation = await sync_to_async(_serialize_and_get_conversation, thread_sensitive=True)()
+        payload, conversation = await sync_to_async(
+            _serialize_and_get_conversation, thread_sensitive=True
+        )()
         participants = await ChatDispatcher._get_participants(conversation)
 
         await Broadcaster.send_to_conversation(
@@ -142,13 +152,16 @@ class ChatDispatcher:
     @staticmethod
     async def message_deleted(message: Message) -> None:
         """Broadcast a deleted message."""
+
         def _serialize_and_get_conversation():
             return (
                 cast(dict[str, Any], MessageSerializer(message).data),
-                message.conversation
+                message.conversation,
             )
 
-        payload, conversation = await sync_to_async(_serialize_and_get_conversation, thread_sensitive=True)()
+        payload, conversation = await sync_to_async(
+            _serialize_and_get_conversation, thread_sensitive=True
+        )()
         participants = await ChatDispatcher._get_participants(conversation)
 
         await Broadcaster.send_to_conversation(
@@ -171,10 +184,13 @@ class ChatDispatcher:
         participant: ConversationParticipant,
     ) -> None:
         """Broadcast a participant joining."""
+
         def _get_relations():
             return participant.conversation, participant.user
 
-        conversation, user = await sync_to_async(_get_relations, thread_sensitive=True)()
+        conversation, user = await sync_to_async(
+            _get_relations, thread_sensitive=True
+        )()
 
         await Broadcaster.send_to_conversation(
             conversation=conversation,
@@ -190,10 +206,13 @@ class ChatDispatcher:
         participant: ConversationParticipant,
     ) -> None:
         """Broadcast a participant leaving."""
+
         def _get_relations():
             return participant.conversation, participant.user
 
-        conversation, user = await sync_to_async(_get_relations, thread_sensitive=True)()
+        conversation, user = await sync_to_async(
+            _get_relations, thread_sensitive=True
+        )()
 
         await Broadcaster.send_to_conversation(
             conversation=conversation,
@@ -213,10 +232,13 @@ class ChatDispatcher:
         reaction: MessageReaction,
     ) -> None:
         """Broadcast updated reactions."""
+
         def _get_relations():
             return reaction.message, reaction.message.conversation
 
-        message, conversation = await sync_to_async(_get_relations, thread_sensitive=True)()
+        message, conversation = await sync_to_async(
+            _get_relations, thread_sensitive=True
+        )()
         participants = await ChatDispatcher._get_participants(conversation)
 
         await Broadcaster.send_to_conversation(
@@ -320,10 +342,13 @@ class ChatDispatcher:
         last_read_at_iso: str,
     ) -> None:
         """Broadcast that a user has updated their read receipt up to a specific message."""
+
         def _get_conversation_participants() -> list[User]:
             return list(conversation.participants.all())
 
-        participants = await sync_to_async(_get_conversation_participants, thread_sensitive=True)()
+        participants = await sync_to_async(
+            _get_conversation_participants, thread_sensitive=True
+        )()
 
         payload = {
             "conversation_id": str(conversation.id),
