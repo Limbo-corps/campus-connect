@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { Card, Spinner } from "@heroui/react";
-import type { Conversation, User } from "@/types";
+import type { Conversation, User, ChatUser } from "@/types";
 import type { LocalMessage, SendInput } from "@/hooks/useMessages";
 import { ThreadHeader } from "@/components/chat/ThreadHeader";
 import { MessageItem } from "@/components/chat/MessageItem";
@@ -25,7 +25,7 @@ interface ChatThreadCentralProps {
   allMessages: LocalMessage[];
   replyTo: LocalMessage | null;
   editing: LocalMessage | null;
-  other: User | null;
+  other: ChatUser | null;
   loadOlder: () => Promise<void>;
   setReplyTo: (msg: LocalMessage | null) => void;
   setEditing: (msg: LocalMessage | null) => void;

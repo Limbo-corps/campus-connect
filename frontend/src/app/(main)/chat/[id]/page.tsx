@@ -112,7 +112,17 @@ export default function ChatDetailPage() {
 
   const other = useMemo(() => {
     if (!otherBase) return null;
-    return { ...otherBase, ...fullOtherProfile };
+
+    // Construct a ChatUser-shaped object using the lightweight otherBase
+    // and any enriched profile fields we fetched. Avoid propagating
+    // server-side-only fields (like email) that don't belong on ChatUser.
+    return {
+      id: otherBase.id,
+      username: otherBase.username,
+      first_name: fullOtherProfile?.first_name ?? otherBase.first_name ?? "",
+      last_name: fullOtherProfile?.last_name ?? otherBase.last_name ?? "",
+      avatar_url: fullOtherProfile?.avatar_url ?? otherBase.avatar_url ?? "",
+    };
   }, [otherBase, fullOtherProfile]);
 
   useEffect(() => {

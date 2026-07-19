@@ -34,6 +34,7 @@ class MessageSelector:
             .prefetch_related("reactions")
             .get(id=message_id)
         )
+
     @staticmethod
     def get_conversation_message(conversation, message_id):
         return (

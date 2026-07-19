@@ -51,10 +51,13 @@ class User(AbstractUser):
         """True only when both users follow each other (DM prerequisite)."""
         if self.pk == other.pk:
             return False
-        return self.is_following_user(other) and Follow.objects.filter(
-            follower=other,
-            following=self,
-        ).exists()
+        return (
+            self.is_following_user(other)
+            and Follow.objects.filter(
+                follower=other,
+                following=self,
+            ).exists()
+        )
 
     def mutuals(self) -> models.QuerySet["User"]:
         """Users who follow this user AND are followed back by this user."""

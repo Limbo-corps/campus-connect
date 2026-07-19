@@ -8,6 +8,9 @@ export interface ChatUser {
   first_name: string;
   last_name: string;
   avatar_url: string;
+  // Optional small profile fields surfaced in chat UIs.
+  tagline?: string | null;
+  bio?: string | null;
 }
 
 export interface ReplyPreview {
@@ -118,8 +121,3 @@ export interface PresencePayload {
   is_online: boolean;
 }
 
-export interface ReadReceiptPayload {
-  conversation: string;
-  user_id: string;
-  last_read_message: string;
-}

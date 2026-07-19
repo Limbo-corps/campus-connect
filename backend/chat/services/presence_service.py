@@ -146,10 +146,13 @@ class PresenceService:
     ) -> bool:
         """Return whether the user is currently online."""
         try:
-            return cache.get(
-                cls._key(user),
-                0,
-            ) > 0
+            return (
+                cache.get(
+                    cls._key(user),
+                    0,
+                )
+                > 0
+            )
 
         except Exception:
             logger.exception(
@@ -164,8 +167,4 @@ class PresenceService:
         users,
     ) -> list[User]:
         """Return the users that are currently online."""
-        return [
-            user
-            for user in users
-            if cls.is_online(user)
-        ]
+        return [user for user in users if cls.is_online(user)]
