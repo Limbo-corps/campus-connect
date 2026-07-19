@@ -1,4 +1,3 @@
-// components/chat/MessageItem.tsx
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -10,6 +9,8 @@ import {
   Pencil,
   SmilePlus,
   Trash2,
+  Check,
+  CheckCheck,
 } from "lucide-react";
 
 import { ChatAvatar } from "./ChatAvatar";
@@ -18,6 +19,7 @@ import { isEmojiOnly } from "@/lib/chat/emoji";
 import type { LocalMessage } from "@/hooks/useMessages";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+const URL_REGEX = /(https?:\/\/[^\s]+|www\.[^\s]+)/gi;
 
 interface MessageItemProps {
   message: LocalMessage;
@@ -25,6 +27,11 @@ interface MessageItemProps {
   isGroup: boolean;
   showHeader: boolean;
   meId?: string;
+  participantsDetail?: Array<{
+    user: { id: string };
+    last_read_message?: string | null;
+    last_read_at?: string | null;
+  }>;
   onReply?: (message: LocalMessage) => void;
   onEdit?: (message: LocalMessage) => void;
   onDelete?: (message: LocalMessage) => void;
@@ -38,6 +45,7 @@ export const MessageItem = React.memo(
     isGroup,
     showHeader,
     meId,
+    participantsDetail = [],
     onReply,
     onEdit,
     onDelete,
@@ -64,6 +72,37 @@ export const MessageItem = React.memo(
     const canReact = !!onReact && !deleted && !isBot && !message.pending;
     const reactions = message.reactions ?? [];
 
+    // ── Cumulative Read Status Logic ──
+    const isSeen = React.useMemo(() => {
+      if (!isMe || message.pending || message.failed || deleted) return false;
+
+      const currentMsgTime = new Date(message.created_at).getTime();
+
+      return participantsDetail.some((p) => {
+        if (p.user.id === meId) return false;
+
+        // Exact match baseline
+        if (p.last_read_message === message.id) return true;
+
+        // Cumulative chronological fallback check
+        if (p.last_read_at) {
+          const lastReadTime = new Date(p.last_read_at).getTime();
+          return lastReadTime >= currentMsgTime;
+        }
+
+        return false;
+      });
+    }, [
+      isMe,
+      message.id,
+      message.created_at,
+      message.pending,
+      message.failed,
+      deleted,
+      participantsDetail,
+      meId,
+    ]);
+
     useEffect(() => {
       if (!pickerOpen) return;
       const handleKeyDown = (e: KeyboardEvent) => {
@@ -78,13 +117,36 @@ export const MessageItem = React.memo(
       setPickerOpen(false);
     };
 
-    // ── Design Token Mapping ──
+    const renderMessageContent = (content: string) => {
+      if (!content) return null;
+      const parts = content.split(URL_REGEX);
+      if (parts.length === 1) return content;
+
+      return parts.map((part, index) => {
+        if (part.match(URL_REGEX)) {
+          const href = part.toLowerCase().startsWith("http")
+            ? part
+            : `https://${part}`;
+          return (
+            <a
+              key={index}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[--accent] underline hover:text-[--accent-hover] break-all font-medium transition-colors duration-150"
+            >
+              {part}
+            </a>
+          );
+        }
+        return part;
+      });
+    };
+
     const bubbleBase =
       "relative max-w-[72%] px-4 py-2.5 text-[14px] leading-relaxed break-words transition-all duration-200 ease-out";
-
-    const bubbleTone = isMe
-      ? "bg-[--surface] text-[--foreground] shadow-sm border border-[--border]"
-      : "bg-[--surface] text-[--foreground] shadow-sm border border-[--border]";
+    const bubbleTone =
+      "bg-[--surface] text-[--foreground] shadow-sm border border-[--border]";
 
     const cornerStyle = isMe
       ? {
@@ -98,11 +160,8 @@ export const MessageItem = React.memo(
 
     return (
       <div
-        className={`group flex items-end gap-3 ${isMe ? "flex-row-reverse" : "flex-row"} ${
-          showHeader ? "mt-5" : "mt-1.5"
-        }`}
+        className={`group flex items-end gap-3 ${isMe ? "flex-row-reverse" : "flex-row"} ${showHeader ? "mt-5" : "mt-1.5"}`}
       >
-        {/* Avatar Layer */}
         {!isMe &&
           (showHeader ? (
             <div className="mb-0.5 transition-transform duration-200 hover:scale-105">
@@ -119,7 +178,6 @@ export const MessageItem = React.memo(
         <div
           className={`flex min-w-0 flex-col ${isMe ? "items-end" : "items-start"}`}
         >
-          {/* Identity Header */}
           {showHeader && !isMe && (isGroup || isBot) && (
             <span className="mb-1.5 flex items-center gap-1.5 px-1 text-[10px] font-extrabold tracking-widest text-[--muted] uppercase">
               {userDisplayName(message.sender)}
@@ -135,13 +193,10 @@ export const MessageItem = React.memo(
           )}
 
           <div className="flex items-end gap-2 w-full">
-            {/* Dynamic System Action Strip */}
             {!deleted && (onReply || canModify || canReact) && (
               <div
                 ref={pickerRef}
-                className={`relative flex items-center gap-0.5 border border-[--border] bg-[--surface] p-1 shadow-md opacity-0 transition-all duration-150 transform translate-y-0.5 group-hover:opacity-100 group-hover:translate-y-0 focus-within:opacity-100 focus-within:translate-y-0 ${
-                  pickerOpen ? "opacity-100 translate-y-0" : ""
-                } ${isMe ? "order-first" : "order-last"}`}
+                className={`relative flex items-center gap-0.5 border border-[--border] bg-[--surface] p-1 shadow-md opacity-0 transition-all duration-150 transform translate-y-0.5 group-hover:opacity-100 group-hover:translate-y-0 focus-within:opacity-100 focus-within:translate-y-0 ${pickerOpen ? "opacity-100 translate-y-0" : ""} ${isMe ? "order-first" : "order-last"}`}
                 style={{ borderRadius: "var(--radius-lg)" }}
               >
                 {canReact && (
@@ -164,9 +219,7 @@ export const MessageItem = React.memo(
                     />
                     <div
                       role="menu"
-                      className={`absolute bottom-full z-20 mb-2 flex gap-1 border border-[--border] bg-[--surface] p-1.5 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150 ${
-                        isMe ? "right-0" : "left-0"
-                      }`}
+                      className={`absolute bottom-full z-20 mb-2 flex gap-1 border border-[--border] bg-[--surface] p-1.5 shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-150 ${isMe ? "right-0" : "left-0"}`}
                       style={{ borderRadius: "var(--radius-3xl)" }}
                     >
                       {QUICK_EMOJIS.map((emoji) => (
@@ -219,34 +272,23 @@ export const MessageItem = React.memo(
               </div>
             )}
 
-            {/* Core Message Container Block */}
             <div
-              className={`${bubbleBase} ${
-                jumbo
-                  ? "bg-transparent shadow-none border-none px-0 py-0"
-                  : deleted
-                    ? "border border-[--border] bg-transparent italic text-[--muted] shadow-none"
-                    : bubbleTone
-              } ${message.failed ? "border-[--danger] ring-1 ring-[--danger]" : ""}`}
+              className={`${bubbleBase} ${jumbo ? "bg-transparent shadow-none border-none px-0 py-0" : deleted ? "border border-[--border] bg-transparent italic text-[--muted] shadow-none" : bubbleTone} ${message.failed ? "border-[--danger] ring-1 ring-[--danger]" : ""}`}
               style={jumbo ? undefined : cornerStyle}
             >
-              {/* Refined Nested Reply Reference Block */}
               {message.reply_to && !deleted && (
                 <div
                   className="mb-2 border-l-2 border-[--accent] bg-[--surface-secondary] px-2.5 py-1 text-xs max-w-full border-solid"
                   style={{ borderRadius: "var(--radius-md)" }}
                 >
                   <div className="flex items-center justify-between gap-4 mb-0.5">
-                    {/* Sender Name */}
                     <span className="block font-bold tracking-tight truncate text-[--foreground]">
                       {userDisplayName(message.reply_to.sender)}
                     </span>
-                    {/* "Reply" Badge Label */}
                     <span className="text-[9px] uppercase tracking-wider font-extrabold shrink-0 text-[--muted]">
                       Reply
                     </span>
                   </div>
-                  {/* Replied Snippet Content */}
                   <p className="truncate text-[11px] font-normal text-[--muted]">
                     {message.reply_to.is_deleted
                       ? "Message deleted"
@@ -291,10 +333,12 @@ export const MessageItem = React.memo(
                       className={
                         jumbo
                           ? "block text-5xl select-none"
-                          : "whitespace-pre-wrap break-words font-normal"
+                          : "whitespace-pre-wrap wrap-break-word font-normal"
                       }
                     >
-                      {message.content}
+                      {jumbo
+                        ? message.content
+                        : renderMessageContent(message.content)}
                     </span>
                   )}
                 </>
@@ -302,7 +346,6 @@ export const MessageItem = React.memo(
             </div>
           </div>
 
-          {/* Reaction Triggers */}
           {reactions.length > 0 && (
             <div
               className={`mt-1.5 flex flex-wrap gap-1 ${isMe ? "flex-row-reverse" : "flex-row"}`}
@@ -315,11 +358,7 @@ export const MessageItem = React.memo(
                     type="button"
                     onClick={() => onReact?.(message, r.emoji)}
                     disabled={!canReact}
-                    className={`flex items-center gap-1.5 border px-2.5 py-0.5 text-[11px] font-medium transition-all ${
-                      reacted
-                        ? "border-[--accent] bg-[--bg-wash] text-[--foreground]"
-                        : "border-[--border] bg-[--surface] text-[--muted] hover:text-[--foreground] hover:bg-[--surface-secondary]"
-                    } ${canReact ? "cursor-pointer" : "cursor-default"}`}
+                    className={`flex items-center gap-1.5 border px-2.5 py-0.5 text-[11px] font-medium transition-all ${reacted ? "border-[--accent] bg-[--bg-wash] text-[--foreground]" : "border-[--border] bg-[--surface] text-[--muted] hover:text-[--foreground] hover:bg-[--surface-secondary]"} ${canReact ? "cursor-pointer" : "cursor-default"}`}
                     style={{ borderRadius: "var(--radius-3xl)" }}
                   >
                     <span>{r.emoji}</span>
@@ -330,7 +369,6 @@ export const MessageItem = React.memo(
             </div>
           )}
 
-          {/* Timing Strip Line */}
           <div
             className={`mt-1 flex items-center gap-1.5 px-1.5 text-[10px] text-[--muted] font-medium tracking-wide ${isMe ? "flex-row-reverse" : "flex-row"}`}
           >
@@ -338,6 +376,17 @@ export const MessageItem = React.memo(
               {formatTime(message.created_at)}
             </time>
             {message.is_edited && !deleted && <span>• edited</span>}
+
+            {isMe && !message.pending && !message.failed && !deleted && (
+              <span className="inline-flex items-center ml-0.5 text-[--accent]">
+                {isSeen ? (
+                  <CheckCheck size={13} className="stroke-[2.5]" />
+                ) : (
+                  <Check size={13} className="stroke-[2.5]" />
+                )}
+              </span>
+            )}
+
             {message.pending && (
               <Clock size={10} className="animate-pulse text-[--accent]" />
             )}
@@ -351,6 +400,7 @@ export const MessageItem = React.memo(
       </div>
     );
   },
+  // The optimized comparison function strategy
   (prevProps, nextProps) => {
     return (
       prevProps.showHeader === nextProps.showHeader &&
@@ -363,8 +413,10 @@ export const MessageItem = React.memo(
       prevProps.message.is_edited === nextProps.message.is_edited &&
       prevProps.message.pending === nextProps.message.pending &&
       prevProps.message.failed === nextProps.message.failed &&
-      JSON.stringify(prevProps.message.reactions) ===
-        JSON.stringify(nextProps.message.reactions)
+      prevProps.message.created_at === nextProps.message.created_at &&
+      // Strict dependency checks to ensure updates pierce through Memo smoothly
+      prevProps.participantsDetail === nextProps.participantsDetail &&
+      prevProps.message.reactions === nextProps.message.reactions
     );
   },
 );

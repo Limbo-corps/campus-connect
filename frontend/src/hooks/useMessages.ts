@@ -96,7 +96,7 @@ export function useMessages(conversationId: string | null) {
 
     const off = subscribe((event: ChatEvent) => {
       switch (event.event) {
-        case "message.new": {
+        case "message.created": {
           const msg = event.data as Message;
           if (msg.conversation !== conversationId) return;
           setMessages((prev) => {
@@ -118,9 +118,9 @@ export function useMessages(conversationId: string | null) {
           });
           break;
         }
-        case "message.edited":
+        case "message.updated":
         case "message.deleted":
-        case "message.reaction": {
+        case "reaction.updated": {
           const msg = event.data as Message;
           if (msg.conversation !== conversationId) return;
           setMessages((prev) => upsert(prev, msg));

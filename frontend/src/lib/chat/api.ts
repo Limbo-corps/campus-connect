@@ -31,10 +31,9 @@ export async function renameGroup(
   id: string,
   name: string,
 ): Promise<Conversation> {
-  const { data } = await api.patch<Conversation>(
-    `/chat/conversations/${id}/`,
-    { name },
-  );
+  const { data } = await api.patch<Conversation>(`/chat/conversations/${id}/`, {
+    name,
+  });
   return data;
 }
 
@@ -141,10 +140,27 @@ export async function reactToMessage(
   return data;
 }
 
+const _lastMarkReadAt = new Map<string, number>();
+
 export async function markRead(
   conversationId: string,
   messageId?: string,
 ): Promise<void> {
+  // Prevent sending network requests for temporary client-side IDs
+  if (messageId && messageId.startsWith("temp-")) {
+    return;
+  }
+
+  // Coalesce rapid repeated markRead calls per conversation to avoid spamming
+  // the API (debounce window: 1000ms). This helps prevent server-side rate
+  // limit (429) and reduces Redis load from downstream presence updates.
+  const now = Date.now();
+  const last = _lastMarkReadAt.get(conversationId) ?? 0;
+  if (now - last < 1000) {
+    return;
+  }
+  _lastMarkReadAt.set(conversationId, now);
+
   await api.post(`/chat/conversations/${conversationId}/read/`, {
     message_id: messageId,
   });

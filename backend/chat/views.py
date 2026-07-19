@@ -1,9 +1,13 @@
-from django.contrib.auth import get_user_model
+import uuid
+from asgiref.sync import async_to_sync
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+import logging
 
 from chat.exceptions import (
     CannotLeaveOwnConversation,
@@ -18,17 +22,13 @@ from chat.exceptions import (
     UserNotConversationParticipant,
 )
 from chat.models import Conversation, ConversationParticipant, Message
-from chat.realtime import broadcast_to_conversation, send_to_users
+from chat.realtime.dispatcher import ChatDispatcher
 from chat.selectors.conversation_selector import ConversationSelector
 from chat.selectors.message_selector import MessageSelector
-from chat.serializers import (
-    ConversationSerializer,
-    MessageSerializer,
-)
+from chat.serializers import ConversationSerializer, MessageSerializer
 from chat.services.conversation_service import ConversationService
 from chat.services.message_service import MessageService
-
-User = get_user_model()
+from users.models import User
 
 _STATUS_FOR_EXCEPTION = {
     ConversationNotFound: status.HTTP_404_NOT_FOUND,
@@ -52,21 +52,21 @@ def _error(exc: ChatException) -> Response:
 
 def _get_conversation(conversation_id) -> Conversation:
     try:
-        return ConversationSelector.get_conversations(conversation_id)
+        return ConversationSelector.get_conversation(conversation_id)
     except Conversation.DoesNotExist:
         raise ConversationNotFound()
 
 
-def _require_participant(conversation, user) -> ConversationParticipant:
-    membership = conversation.memberships.filter(user=user).first()
-    if membership is None:
+def _require_participant(conversation: Conversation, user: User) -> ConversationParticipant:
+    try:
+        return conversation.memberships.get(user=user)  # type: ignore[reportReturnType]
+    except ConversationParticipant.DoesNotExist:
         raise UserNotConversationParticipant()
-    return membership
 
 
-def _require_admin(conversation, user) -> ConversationParticipant:
+def _require_admin(conversation: Conversation, user: User) -> ConversationParticipant:
     membership = _require_participant(conversation, user)
-    if not membership.is_admin and conversation.owner_id != user.id:
+    if not membership.is_admin and conversation.owner_id != user.id:  # type: ignore[reportUnnecessaryComparison]
         raise NotConversationAdmin()
     return membership
 
@@ -113,14 +113,11 @@ class ConversationListCreateView(APIView):
         except ChatException as exc:
             return _error(exc)
 
+        # Re-fetch via selector to ensure all optimized prefetches/select_related hooks apply
         conversation = _get_conversation(conversation.id)
         data = ConversationSerializer(
             conversation, context=_serializer_context(request)
         ).data
-
-        # Notify every participant so their conversation list updates live.
-        broadcast_to_conversation(conversation, "conversation.created", data)
-
         return Response(data, status=status.HTTP_201_CREATED)
 
 
@@ -160,29 +157,20 @@ class ConversationDetailView(APIView):
         data = ConversationSerializer(
             conversation, context=_serializer_context(request)
         ).data
-        broadcast_to_conversation(conversation, "conversation.updated", data)
+        async_to_sync(ChatDispatcher.conversation_updated)(conversation)
         return Response(data)
 
     def delete(self, request, conversation_id):
         """Delete a conversation (owner only)."""
         try:
             conversation = _get_conversation(conversation_id)
-            if conversation.owner_id != request.user.id:
+            if conversation.owner_id != request.user.id:  # type: ignore[reportUnnecessaryComparison]
                 raise NotConversationAdmin()
         except ChatException as exc:
             return _error(exc)
 
-        participant_ids = list(
-            conversation.memberships.values_list("user_id", flat=True)
-        )
-        conversation_id_str = str(conversation.id)
         conversation.delete()
-
-        send_to_users(
-            participant_ids,
-            "conversation.deleted",
-            {"id": conversation_id_str},
-        )
+        async_to_sync(ChatDispatcher.conversation_deleted)(conversation)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -194,16 +182,14 @@ class LeaveConversationView(APIView):
             conversation = _get_conversation(conversation_id)
             _require_participant(conversation, request.user)
 
-            if conversation.owner_id == request.user.id:
+            if conversation.owner_id == request.user.id:  # type: ignore[reportUnnecessaryComparison]
                 raise CannotLeaveOwnConversation()
 
             ConversationService.leave_conversation(conversation, request.user)
         except ChatException as exc:
             return _error(exc)
 
-        _broadcast_participant_change(
-            conversation, request.user, joined=False, actor=request.user
-        )
+        async_to_sync(ChatDispatcher.conversation_updated)(conversation)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -221,7 +207,6 @@ class ParticipantsView(APIView):
             if target is None:
                 raise InvalidParticipant()
 
-            # Only people who follow the inviter back can be added.
             if not request.user.is_mutual_with(target):
                 raise NotMutualFollowers()
 
@@ -230,8 +215,11 @@ class ParticipantsView(APIView):
             return _error(exc)
 
         conversation = _get_conversation(conversation.id)
-        _broadcast_participant_change(
-            conversation, target, joined=True, actor=request.user
+        async_to_sync(ChatDispatcher.participant_joined)(
+            participant=ConversationParticipant(
+                conversation=conversation,
+                user=target,
+            )
         )
         data = ConversationSerializer(
             conversation, context=_serializer_context(request)
@@ -248,7 +236,7 @@ class ParticipantsView(APIView):
             if target is None:
                 raise InvalidParticipant()
 
-            if conversation.owner_id == target.id:
+            if conversation.owner_id == target.id:  # type: ignore[reportUnnecessaryComparison]
                 raise CannotRemoveConversationOwner()
 
             ConversationService.remove_participant(conversation, target)
@@ -256,8 +244,11 @@ class ParticipantsView(APIView):
             return _error(exc)
 
         conversation = _get_conversation(conversation.id)
-        _broadcast_participant_change(
-            conversation, target, joined=False, actor=request.user
+        async_to_sync(ChatDispatcher.participant_left)(
+            participant=ConversationParticipant(
+                conversation=conversation,
+                user=target,
+            )
         )
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -279,23 +270,14 @@ class MessagesView(APIView):
             limit = DEFAULT_MESSAGE_PAGE_SIZE
         limit = max(1, min(limit, MAX_MESSAGE_PAGE_SIZE))
 
-        qs = (
-            Message.objects.filter(conversation=conversation)
-            .select_related("sender", "reply_to", "reply_to__sender")
-            .prefetch_related("reactions")
-            .order_by("-created_at")
+        before = None
+        before_id = request.query_params.get("before")
+        if before_id:
+            before = MessageSelector.get_message(before_id)
+
+        page, has_more = MessageSelector.get_messages_page(
+            conversation, before=before, limit=limit
         )
-
-        before = request.query_params.get("before")
-        if before:
-            anchor = Message.objects.filter(id=before).first()
-            if anchor is not None:
-                qs = qs.filter(created_at__lt=anchor.created_at)
-
-        page = list(qs[: limit + 1])
-        has_more = len(page) > limit
-        page = page[:limit]
-        page.reverse()  # ascending for display
 
         data = MessageSerializer(
             page, many=True, context=_serializer_context(request)
@@ -314,9 +296,9 @@ class MessagesView(APIView):
             reply_to = None
             reply_to_id = request.data.get("reply_to")
             if reply_to_id:
-                reply_to = Message.objects.filter(
-                    id=reply_to_id, conversation=conversation
-                ).first()
+                reply_to = MessageSelector.get_conversation_message(
+                    conversation, reply_to_id
+                )
 
             message = MessageService.send_message(
                 conversation=conversation,
@@ -334,9 +316,8 @@ class MessagesView(APIView):
             message, context=_serializer_context(request)
         ).data
 
-        broadcast_to_conversation(conversation, "message.new", data)
-        # Refresh conversation ordering / last-message preview for all lists.
-        _broadcast_conversation_snapshot(conversation, request)
+        async_to_sync(ChatDispatcher.message_created)(message)
+        async_to_sync(ChatDispatcher.conversation_updated)(conversation)
 
         return Response(data, status=status.HTTP_201_CREATED)
 
@@ -369,15 +350,16 @@ class MessageDetailView(APIView):
         data = MessageSerializer(
             message, context=_serializer_context(request)
         ).data
-        broadcast_to_conversation(message.conversation, "message.edited", data)
+
+        async_to_sync(ChatDispatcher.message_updated)(message)
+        conversation = ConversationSelector.get_conversation(message.conversation_id)  # type: ignore[reportReturnType]
+        async_to_sync(ChatDispatcher.conversation_updated)(conversation)
         return Response(data)
 
     def delete(self, request, message_id):
         try:
             message = self._get_message(message_id)
-            message = MessageService.delete_message(
-                message=message, user=request.user
-            )
+            message = MessageService.delete_message(message=message, user=request.user)
         except ChatException as exc:
             return _error(exc)
 
@@ -385,13 +367,12 @@ class MessageDetailView(APIView):
         data = MessageSerializer(
             message, context=_serializer_context(request)
         ).data
-        broadcast_to_conversation(message.conversation, "message.deleted", data)
+        async_to_sync(ChatDispatcher.message_deleted)(message)
         return Response(data)
 
 
 class ReactionsView(APIView):
     """Toggle an emoji reaction on a message."""
-
     permission_classes = [IsAuthenticated]
 
     def post(self, request, message_id):
@@ -417,7 +398,7 @@ class ReactionsView(APIView):
         data = MessageSerializer(
             message, context=_serializer_context(request)
         ).data
-        broadcast_to_conversation(message.conversation, "message.reaction", data)
+        async_to_sync(ChatDispatcher.message_updated)(message)
         return Response(data)
 
 
@@ -430,52 +411,62 @@ class MarkReadView(APIView):
             _require_participant(conversation, request.user)
 
             message_id = request.data.get("message_id")
+
             if message_id:
-                message = Message.objects.filter(
-                    id=message_id, conversation=conversation
-                ).first()
+                try:
+                    uuid.UUID(str(message_id))
+                except (ValueError, TypeError):
+                    return Response(
+                        {"detail": "Invalid message identifier format. Temporary message IDs cannot be marked read."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                message = MessageSelector.get_conversation_message(
+                    conversation,
+                    message_id,
+                )
             else:
                 message = MessageSelector.get_last_message(conversation)
 
             if message is None:
-                return Response({"detail": "No message to mark as read."})
+                return Response(
+                    {"detail": "No message to mark as read."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
 
-            MessageService.mark_as_read(conversation, request.user, message)
+            MessageService.mark_as_read(
+                conversation,
+                request.user,
+                message,
+            )
+
+            message = MessageSelector.get_message(message.id)
+
         except ChatException as exc:
             return _error(exc)
 
-        broadcast_to_conversation(
-            conversation,
-            "read.receipt",
+        async_to_sync(ChatDispatcher.message_updated)(message)
+
+        # Broadcast a read-receipt so clients can update participants' last_read_message
+        try:
+            async_to_sync(ChatDispatcher.read_receipt_updated)(
+                conversation=conversation,
+                user=request.user,
+                last_read_message_id=str(message.id),
+                last_read_at_iso=timezone.now().isoformat(),
+            )
+        except Exception as exc:
+            # Log broadcasting failures so they can be diagnosed; do not fail
+            # the API call for end-users.
+            logger = logging.getLogger(__name__)
+            logger.exception(
+                "Failed to broadcast read-receipt for conversation %s by user %s",
+                conversation.id,
+                getattr(request.user, "id", None),
+            )
+
+        return Response(
             {
-                "conversation": str(conversation.id),
-                "user_id": str(request.user.id),
                 "last_read_message": str(message.id),
-            },
+            }
         )
-        return Response({"last_read_message": str(message.id)})
-
-
-def _broadcast_participant_change(conversation, target_user, *, joined, actor):
-    from chat.serializers import ChatUserSerializer
-
-    payload = {
-        "conversation": str(conversation.id),
-        "user": ChatUserSerializer(target_user).data,
-        "actor": ChatUserSerializer(actor).data,
-    }
-    event = "participant.added" if joined else "participant.removed"
-
-    # Notify remaining participants plus the affected user themselves.
-    user_ids = list(conversation.memberships.values_list("user_id", flat=True))
-    user_ids.append(target_user.id)
-    send_to_users(user_ids, event, payload)
-
-
-def _broadcast_conversation_snapshot(conversation, request):
-    """Push a fresh conversation object so each client re-sorts its list."""
-    fresh = _get_conversation(conversation.id)
-    data = ConversationSerializer(
-        fresh, context=_serializer_context(request)
-    ).data
-    broadcast_to_conversation(fresh, "conversation.updated", data)

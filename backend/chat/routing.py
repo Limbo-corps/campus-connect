@@ -1,7 +1,12 @@
+from typing import Any, cast
+
 from django.urls import re_path
 
 from chat.consumers import ChatConsumer
 
 websocket_urlpatterns = [
-    re_path(r"^ws/chat/$", ChatConsumer.as_asgi()),
+    re_path(
+        r"^ws/chat/$",
+        cast(Any, ChatConsumer.as_asgi()),
+    ),
 ]
