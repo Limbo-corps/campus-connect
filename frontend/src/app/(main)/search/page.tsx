@@ -12,7 +12,6 @@ import {
 } from "@heroui/react";
 import {
   Search,
-  Sparkles,
   MapPin,
   UserPlus,
   SlidersHorizontal,

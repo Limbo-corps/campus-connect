@@ -21,7 +21,7 @@ import type {
   PresencePayload,
   ReadReceiptPayload,
   TypingPayload,
-} from "@/types";
+} from "@/types/chat";
 
 type TypingState = Record<string, Record<string, string>>; // conversationId -> userId -> username
 
@@ -64,7 +64,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const socketRef = useRef<ChatSocket | null>(null);
   const activeConversationRef = useRef<string | null>(null);
-  const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const typingTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>(
+    {},
+  );
+  const listenersRef = useRef<Set<(event: ChatEvent) => void>>(new Set());
 
   const refresh = useCallback(async () => {
     try {
@@ -90,7 +93,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const markRead = useCallback(
     async (conversationId: string, messageId?: string) => {
-      // Optimistically clear the local unread badge.
       setConversations((prev) =>
         prev.map((c) =>
           c.id === conversationId ? { ...c, unread_count: 0 } : c,
@@ -114,8 +116,15 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const sendTyping = useCallback((conversationId: string, isTyping: boolean) => {
-    socketRef.current?.sendTyping(conversationId, isTyping);
+  const sendTyping = useCallback(
+    (conversationId: string, isTyping: boolean) => {
+      socketRef.current?.sendTyping(conversationId, isTyping);
+    },
+    [],
+  );
+
+  const emitEvent = useCallback((event: ChatEvent) => {
+    listenersRef.current.forEach((fn) => fn(event));
   }, []);
 
   // ── incoming-event reducers ───────────────────────────────────────────────
@@ -124,14 +133,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setConversations((prev) => {
         const idx = prev.findIndex((c) => c.id === message.conversation);
         if (idx === -1) {
-          // Conversation not in the list yet (e.g. first message of a brand new
-          // thread from someone else) — pull a fresh list.
           void refresh();
           return prev;
         }
         const existing = prev[idx];
-        const isActive =
-          activeConversationRef.current === message.conversation;
+        const isActive = activeConversationRef.current === message.conversation;
         const fromMe = message.sender.id === meId;
         const nextUnread =
           isActive || fromMe ? 0 : (existing.unread_count ?? 0) + 1;
@@ -146,7 +152,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return sortConversations([updated, ...without]);
       });
 
-      // If the message landed in the conversation we're viewing, mark it read.
       if (
         activeConversationRef.current === message.conversation &&
         message.sender.id !== meId
@@ -157,17 +162,49 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [meId, refresh],
   );
 
+  const applyMessageUpdate = useCallback((updatedMessage: Message) => {
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (
+          c.id === updatedMessage.conversation &&
+          c.last_message?.id === updatedMessage.id
+        ) {
+          return { ...c, last_message: updatedMessage };
+        }
+        return c;
+      }),
+    );
+  }, []);
+
   const applyConversationUpdated = useCallback((conversation: Conversation) => {
     setConversations((prev) => {
       const existing = prev.find((c) => c.id === conversation.id);
-      // Preserve our locally-tracked unread count: the broadcast payload's
-      // unread_count is computed for whoever triggered the update, not us.
       const merged: Conversation = existing
         ? { ...conversation, unread_count: existing.unread_count }
         : conversation;
       const without = prev.filter((c) => c.id !== conversation.id);
       return sortConversations([merged, ...without]);
     });
+  }, []);
+
+  const applyReadReceipt = useCallback((payload: ReadReceiptPayload) => {
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id !== payload.conversation_id) return c;
+        return {
+          ...c,
+          participants_detail: c.participants_detail.map((p) =>
+            p.user.id === payload.user_id
+              ? {
+                  ...p,
+                  last_read_message: payload.last_read_message,
+                  last_read_at: payload.last_read_at,
+                }
+              : p,
+          ),
+        };
+      }),
+    );
   }, []);
 
   const clearTyping = useCallback((conversationId: string, userId: string) => {
@@ -195,7 +232,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             [payload.user_id]: payload.username,
           },
         }));
-        // Auto-expire in case a "stopped typing" event is missed.
         typingTimers.current[timerKey] = setTimeout(
           () => clearTyping(payload.conversation, payload.user_id),
           6000,
@@ -207,21 +243,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [meId, clearTyping],
   );
 
+  // ── Create mutable handlers object to keep effect dependency clean ─────
+  const eventHandlersRef = useRef({
+    emitEvent,
+    applyMessageNew,
+    applyMessageUpdate,
+    applyConversationUpdated,
+    removeConversation,
+    refresh,
+    applyReadReceipt,
+    applyTyping,
+  });
+
+  // Keep references completely fresh on every render pass
+  useEffect(() => {
+    eventHandlersRef.current = {
+      emitEvent,
+      applyMessageNew,
+      applyMessageUpdate,
+      applyConversationUpdated,
+      removeConversation,
+      refresh,
+      applyReadReceipt,
+      applyTyping,
+    };
+  });
+
   // ── socket lifecycle ────────────────────────────────────────────────────
   useEffect(() => {
     if (!meId) {
-      // Signed out — tear down.
       socketRef.current?.close();
       socketRef.current = null;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- resetting on sign-out
-      setConversations([]);
-      setConnected(false);
-      setOnlineUserIds(new Set());
-      setLoading(true);
+
+      queueMicrotask(() => {
+        setConversations([]);
+        setConnected(false);
+        setOnlineUserIds(new Set());
+        setLoading(true);
+      });
       return;
     }
 
-    void refresh();
+    // Schedule refresh asynchronously to avoid calling setState synchronously
+    // inside an effect (react warns about cascading renders). Use
+    // queueMicrotask when available for a microtask-scheduled update.
+    if (typeof queueMicrotask !== "undefined") {
+      queueMicrotask(() => {
+        void refresh();
+      });
+    } else {
+      // Fallback to a macrotask if queueMicrotask isn't present.
+      setTimeout(() => {
+        void refresh();
+      }, 0);
+    }
 
     const socket = new ChatSocket(() =>
       typeof window !== "undefined"
@@ -231,36 +306,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     socketRef.current = socket;
 
     const offStatus = socket.onStatus(setConnected);
+
+    // Subscribe using the stable tracking ref object
     const offEvents = socket.subscribe((event: ChatEvent) => {
+      const handlers = eventHandlersRef.current;
+      handlers.emitEvent(event);
+
       switch (event.event) {
-        case "message.new":
-          applyMessageNew(event.data as Message);
+        case "message.created":
+          handlers.applyMessageNew(event.data as Message);
+          break;
+        case "message.updated":
+        case "message.deleted":
+        case "reaction.updated":
+          handlers.applyMessageUpdate(event.data as Message);
           break;
         case "conversation.created":
-          applyConversationUpdated(event.data as Conversation);
-          break;
         case "conversation.updated":
-          applyConversationUpdated(event.data as Conversation);
+          handlers.applyConversationUpdated(event.data as Conversation);
           break;
         case "conversation.deleted":
-          removeConversation((event.data as { id: string }).id);
+          handlers.removeConversation(
+            (event.data as { conversation_id: string }).conversation_id,
+          );
           break;
-        case "participant.added":
-        case "participant.removed": {
-          const data = event.data as { conversation: string; user: { id: string } };
-          if (event.event === "participant.removed" && data.user.id === meId) {
-            removeConversation(data.conversation);
+        case "participant.joined":
+        case "participant.left": {
+          const data = event.data as {
+            conversation: string;
+            user: { id: string };
+          };
+          if (event.event === "participant.left" && data.user.id === meId) {
+            handlers.removeConversation(data.conversation);
           } else {
-            void refresh();
+            void handlers.refresh();
           }
           break;
         }
+        case "read_receipt.updated":
+          handlers.applyReadReceipt(event.data as ReadReceiptPayload);
+          break;
         case "presence.snapshot":
           setOnlineUserIds(
             new Set((event.data as { online: string[] }).online),
           );
           break;
-        case "presence.update": {
+        case "presence.updated": {
           const { user_id, is_online } = event.data as PresencePayload;
           setOnlineUserIds((prev) => {
             const next = new Set(prev);
@@ -270,8 +361,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           });
           break;
         }
-        case "typing":
-          applyTyping(event.data as TypingPayload);
+        case "typing.started":
+        case "typing.stopped":
+          handlers.applyTyping(event.data as TypingPayload);
           break;
         default:
           break;
@@ -287,20 +379,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       socket.close();
       Object.values(timers).forEach(clearTimeout);
     };
-  }, [
-    meId,
-    refresh,
-    applyMessageNew,
-    applyConversationUpdated,
-    applyTyping,
-    removeConversation,
-  ]);
+  }, [meId, refresh]);
 
-  const subscribe = useCallback(
-    (fn: (event: ChatEvent) => void) =>
-      socketRef.current?.subscribe(fn) ?? (() => {}),
-    [],
-  );
+  const subscribe = useCallback((fn: (event: ChatEvent) => void) => {
+    listenersRef.current.add(fn);
+    return () => {
+      listenersRef.current.delete(fn);
+    };
+  }, []);
 
   const isOnline = useCallback(
     (userId: string | null | undefined) =>
@@ -339,5 +425,4 @@ export function useChat(): ChatContextValue {
   return ctx;
 }
 
-// Re-export for consumers that only need the read-receipt payload type.
 export type { ReadReceiptPayload };

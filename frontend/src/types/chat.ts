@@ -78,20 +78,28 @@ export interface MessagePage {
 
 // ── WebSocket event envelope ──────────────────────────────────────────────
 export type ChatEventName =
-  | "message.new"
-  | "message.edited"
+  | "message.created"
+  | "message.updated"
   | "message.deleted"
-  | "message.reaction"
+  | "reaction.updated"
   | "conversation.created"
   | "conversation.updated"
   | "conversation.deleted"
-  | "participant.added"
-  | "participant.removed"
-  | "read.receipt"
-  | "typing"
-  | "presence.update"
+  | "participant.joined"
+  | "participant.left"
+  | "read_receipt.updated"
+  | "typing.started"
+  | "typing.stopped"
+  | "presence.updated"
   | "presence.snapshot"
   | "pong";
+
+export interface ReadReceiptPayload {
+  conversation_id: string;
+  user_id: string;
+  last_read_message: string;
+  last_read_at?: string | null;
+}
 
 export interface ChatEvent<T = unknown> {
   event: ChatEventName;

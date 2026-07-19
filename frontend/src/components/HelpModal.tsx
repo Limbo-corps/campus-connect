@@ -93,7 +93,9 @@ function HelpModalBody({ user, onClose }: { user: User | null; onClose(): void }
                     </Accordion.Trigger>
                   </Accordion.Heading>
                   <Accordion.Panel>
-                    <Accordion.Body className="pb-3 pt-0 text-sm text-[--muted]">{f.a}</Accordion.Body>
+                    <Accordion.Body className="pb-3 pt-0 text-sm text-[--muted]">
+                      {f.a}
+                    </Accordion.Body>
                   </Accordion.Panel>
                 </Accordion.Item>
               ))}

@@ -168,7 +168,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         membership = self._other_membership(obj)
         if membership is None:
             return None
-        return ChatUserSerializer(membership.user).data
+        return ChatUserSerializer(membership.user).data  # pyright: ignore[reportReturnType]
 
     def get_display_name(self, obj) -> str:
         if obj.is_group:

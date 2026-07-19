@@ -35,12 +35,12 @@ class MeView(generics.RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ["get", "patch", "put"]
 
-    def get_serializer_class(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def get_serializer_class(self):  # type: ignore
         if self.request.method in ("PATCH", "PUT"):
             return UpdateProfileSerializer
         return UserSerializer
 
-    def get_object(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def get_object(self):  # type: ignore
         return self.request.user
 
     def update(self, request, *args, **kwargs):
@@ -146,7 +146,7 @@ class UserListView(generics.ListAPIView):
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def get_queryset(self):  # type: ignore
         return (
             User.objects.exclude(pk=self.request.user.pk)
             .exclude(is_superuser=True)
@@ -159,7 +159,7 @@ class UserByUsernameView(generics.RetrieveAPIView):
     permission_classes = [permissions.IsAuthenticated]
     lookup_field = "username"
 
-    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
+    def get_queryset(self):  # type: ignore
         return User.objects.exclude(is_superuser=True)
 
 
@@ -295,7 +295,7 @@ class FollowersListView(generics.ListAPIView):
     serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):  # type: ignore
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         user = get_object_or_404(User, pk=self.kwargs["pk"])
         return (
             Follow.objects.filter(following=user)
@@ -313,7 +313,7 @@ class FollowingListView(generics.ListAPIView):
     serializer_class = FollowSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):  # type: ignore
+    def get_queryset(self):  # pyright: ignore[reportIncompatibleMethodOverride]
         user = get_object_or_404(User, pk=self.kwargs["pk"])
 
         return (

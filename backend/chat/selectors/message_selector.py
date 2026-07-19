@@ -34,6 +34,22 @@ class MessageSelector:
             .prefetch_related("reactions")
             .get(id=message_id)
         )
+    @staticmethod
+    def get_conversation_message(conversation, message_id):
+        return (
+            Message.objects.filter(
+                conversation=conversation,
+                id=message_id,
+            )
+            .select_related(
+                "sender",
+                "conversation",
+                "reply_to",
+                "reply_to__sender",
+            )
+            .prefetch_related("reactions")
+            .first()
+        )
 
     @staticmethod
     def unread_count(conversation, participant):
@@ -56,3 +72,32 @@ class MessageSelector:
             )
             .count()
         )
+
+    @staticmethod
+    def get_messages_page(
+        conversation,
+        *,
+        before=None,
+        limit=30,
+    ):
+        qs = (
+            Message.objects.filter(conversation=conversation)
+            .select_related(
+                "sender",
+                "reply_to",
+                "reply_to__sender",
+            )
+            .prefetch_related("reactions")
+            .order_by("-created_at")
+        )
+
+        if before is not None:
+            qs = qs.filter(created_at__lt=before.created_at)
+
+        page = list(qs[: limit + 1])
+
+        has_more = len(page) > limit
+        page = page[:limit]
+        page.reverse()
+
+        return page, has_more
