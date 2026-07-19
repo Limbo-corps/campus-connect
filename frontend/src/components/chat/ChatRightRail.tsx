@@ -1,7 +1,7 @@
 "use client";
 
 import { Accordion } from "@heroui/react";
-import type { Conversation, Campus, User } from "@/types";
+import type { Conversation, Campus, ChatUser } from "@/types";
 import { ProfileOverviewCard } from "./ProfileOverviewCard";
 import { CampusDetailsAccordion } from "./CampusDetailsAccordion";
 import { ControlPreferencesAccordion } from "./ControlPreferencesAccordion";
@@ -10,7 +10,7 @@ import { GuardrailsBanner } from "./GuardrailsBanner";
 
 interface ChatRightRailProps {
   conversation: Conversation;
-  other: User | null;
+  other: ChatUser | null;
   meId: string | null;
   activeCampus: Campus | null;
   otherIsOnline: boolean;

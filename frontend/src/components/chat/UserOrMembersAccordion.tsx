@@ -4,7 +4,7 @@ import { Accordion } from "@heroui/react";
 import { Info, Users, FileText } from "lucide-react";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { userDisplayName } from "@/lib/chat/format";
-import type { Conversation, User } from "@/types";
+import type { Conversation, ChatUser } from "@/types";
 
 export function UserOrMembersAccordion({
   conversation,
@@ -13,7 +13,7 @@ export function UserOrMembersAccordion({
   checkUserOnlineStatus,
 }: {
   conversation: Conversation;
-  other: User | null;
+  other: ChatUser | null;
   meId: string | null;
   checkUserOnlineStatus: (id?: string) => boolean;
 }) {

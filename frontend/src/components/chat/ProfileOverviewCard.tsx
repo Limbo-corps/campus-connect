@@ -4,7 +4,7 @@ import { Card } from "@heroui/react";
 import { MessageCircle } from "lucide-react";
 import { ChatAvatar } from "@/components/chat/ChatAvatar";
 import { userDisplayName } from "@/lib/chat/format";
-import type { Conversation, User } from "@/types";
+import type { Conversation, ChatUser } from "@/types";
 
 export function ProfileOverviewCard({
   conversation,
@@ -12,7 +12,7 @@ export function ProfileOverviewCard({
   otherIsOnline,
 }: {
   conversation: Conversation;
-  other: User | null;
+  other: ChatUser | null;
   otherIsOnline: boolean;
 }) {
   const name = conversation.is_group
