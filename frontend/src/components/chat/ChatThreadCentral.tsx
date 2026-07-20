@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { Card, Spinner } from "@heroui/react";
-import type { Conversation, User, ChatUser } from "@/types";
+import type { Conversation, User, ChatUser, PresencePayload } from "@/types";
 import type { LocalMessage, SendInput } from "@/hooks/useMessages";
 import { ThreadHeader } from "@/components/chat/ThreadHeader";
 import { MessageItem } from "@/components/chat/MessageItem";
@@ -17,7 +17,9 @@ interface ChatThreadCentralProps {
   conversation: Conversation;
   meId: string | null;
   user: User | null;
-  isOnline: (userId: string | null | undefined) => boolean;
+  getPresence: (
+    userId: string | null | undefined,
+  ) => PresencePayload | undefined;
   typingText: string | null;
   loading: boolean;
   loadingOlder: boolean;
@@ -29,7 +31,7 @@ interface ChatThreadCentralProps {
   loadOlder: () => Promise<void>;
   setReplyTo: (msg: LocalMessage | null) => void;
   setEditing: (msg: LocalMessage | null) => void;
-  handleRename: () => Promise<void>;
+  handleRename: (newName: string) => Promise<void>;
   handleLeave: () => Promise<void>;
   handleDeleteConversation: () => Promise<void>;
   handleDelete: (msg: LocalMessage) => Promise<void>;
@@ -38,14 +40,14 @@ interface ChatThreadCentralProps {
   handleTyping: (isTyping: boolean) => void;
   edit: (id: string, content: string) => Promise<void>;
   setAddPeopleOpen: (open: boolean) => void;
+  onOpenTheme?: () => void;
 }
 
-export function ChatThreadCentral({ // props typed loosely to reduce transient lint noise
-
+export function ChatThreadCentral({
   conversation,
   meId,
   user,
-  isOnline,
+  getPresence,
   typingText,
   loading,
   loadingOlder,
@@ -66,40 +68,62 @@ export function ChatThreadCentral({ // props typed loosely to reduce transient l
   handleTyping,
   edit,
   setAddPeopleOpen,
+  onOpenTheme,
 }: ChatThreadCentralProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const prevLenRef = useRef(0);
+  const firstMsgIdRef = useRef<string | null>(null);
 
+  // Handle auto-scroll to bottom vs keeping position on load older
   useEffect(() => {
     if (loading) return;
 
-    const grew = allMessages.length > prevLenRef.current;
-    const last = allMessages[allMessages.length - 1];
-    const isMine = last?.sender.id === meId;
     const el = scrollRef.current;
+    const currentLen = allMessages.length;
+    const grew = currentLen > prevLenRef.current;
 
+    const firstMsg = allMessages[0];
+    const lastMsg = allMessages[currentLen - 1];
+
+    // Detect if the array grew because older messages were prepended at the top
+    const isPrependingOlder =
+      grew &&
+      firstMsgIdRef.current !== null &&
+      firstMsg?.id !== firstMsgIdRef.current;
+
+    const isMine = lastMsg?.sender.id === meId;
     const nearBottom = el
       ? el.scrollHeight - el.scrollTop - el.clientHeight < 200
       : true;
 
-    if (grew && (isMine || nearBottom || prevLenRef.current === 0)) {
+    // Only scroll to bottom if NOT loading older message history
+    if (
+      grew &&
+      !isPrependingOlder &&
+      (isMine || nearBottom || prevLenRef.current === 0)
+    ) {
       endRef.current?.scrollIntoView({
         behavior: prevLenRef.current === 0 ? "auto" : "smooth",
       });
     }
-    prevLenRef.current = allMessages.length;
+
+    prevLenRef.current = currentLen;
+    firstMsgIdRef.current = firstMsg?.id ?? null;
   }, [allMessages, loading, meId]);
 
+  // Infinite scrolling trigger for fetching older messages
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
     if (el && el.scrollTop < 60 && hasMore && !loadingOlder) {
       const prevHeight = el.scrollHeight;
+      const prevScrollTop = el.scrollTop;
+
       void loadOlder().then(() => {
         requestAnimationFrame(() => {
           if (scrollRef.current) {
             scrollRef.current.scrollTop =
-              scrollRef.current.scrollHeight - prevHeight;
+              scrollRef.current.scrollHeight - prevHeight + prevScrollTop;
           }
         });
       });
@@ -112,12 +136,13 @@ export function ChatThreadCentral({ // props typed loosely to reduce transient l
         <ThreadHeader
           conversation={conversation}
           meId={meId}
-          isOnline={isOnline}
+          getPresence={getPresence}
           typingText={typingText}
           onRename={handleRename}
           onAddPeople={() => setAddPeopleOpen(true)}
           onLeave={handleLeave}
           onDelete={handleDeleteConversation}
+          onOpenTheme={onOpenTheme}
         />
 
         <div className="relative flex-1 overflow-hidden">
@@ -166,8 +191,6 @@ export function ChatThreadCentral({ // props typed loosely to reduce transient l
                         isGroup={conversation.is_group}
                         showHeader={!grouped || showDivider}
                         meId={user?.id}
-                        // Provide participants' read state so MessageItem can compute
-                        // whether a message has been seen by other participants.
                         participantsDetail={conversation.participants_detail}
                         onReply={setReplyTo}
                         onEdit={setEditing}

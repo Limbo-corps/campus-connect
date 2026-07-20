@@ -1,4 +1,6 @@
 // components/chat/ChatListItem.tsx
+"use client";
+
 import React from "react";
 import Link from "next/link";
 
@@ -9,13 +11,15 @@ import {
   otherParticipant,
   userDisplayName,
 } from "@/lib/chat/format";
-import type { Conversation } from "@/types";
+import type { Conversation, PresencePayload } from "@/types";
 
 interface ChatListItemProps {
   conversation: Conversation;
   active: boolean;
   meId: string | null;
-  isOnline: (userId: string | null | undefined) => boolean;
+  getPresence: (
+    userId: string | null | undefined,
+  ) => PresencePayload | undefined;
   onNavigate?: () => void;
 }
 
@@ -23,15 +27,17 @@ export function ChatListItem({
   conversation,
   active,
   meId,
-  isOnline,
+  getPresence,
   onNavigate,
 }: ChatListItemProps) {
+  const isGroup = conversation.is_group;
   const other = otherParticipant(conversation, meId);
-  const online = !conversation.is_group && isOnline(other?.id);
+  const presence = !isGroup ? getPresence(other?.id) : undefined;
+
   const unread = conversation.unread_count ?? 0;
   const hasUnread = unread > 0 && !active;
 
-  const name = conversation.is_group
+  const name = isGroup
     ? conversation.display_name || "Group chat"
     : userDisplayName(other);
 
@@ -51,11 +57,9 @@ export function ChatListItem({
     >
       <ChatAvatar
         name={name}
-        avatarUrl={
-          conversation.is_group ? conversation.image_url : other?.avatar_url
-        }
-        isGroup={conversation.is_group}
-        online={conversation.is_group ? undefined : online}
+        avatarUrl={isGroup ? conversation.image_url : other?.avatar_url}
+        isGroup={isGroup}
+        presence={presence}
         size="md"
       />
 

@@ -268,15 +268,34 @@ class ChatDispatcher:
         user: User,
     ) -> None:
         """Broadcast that a user started typing."""
+
+        print("=" * 80)
+        print("[Dispatcher] typing_started")
+        print("[Dispatcher] conversation:", conversation.id)
+        print("[Dispatcher] user:", user.id, user.username)
+        print("[Dispatcher] Calling Broadcaster.send_to_conversation()")
+
+        participants = await ChatDispatcher._get_participants(conversation)
+        typing_data = {
+            "conversation_id": str(conversation.id),
+            "user_id": str(user.id),
+            "username": user.username,
+            "is_typing": True,
+        }
+
         await Broadcaster.send_to_conversation(
             conversation=conversation,
             event=ChatEvents.TYPING_STARTED,
-            data={
-                "conversation_id": str(conversation.id),
-                "user_id": str(user.id),
-                "username": user.username,
-            },
+            data=typing_data,
         )
+        await Broadcaster.send_to_users(
+            users=participants,
+            event=ChatEvents.TYPING_STARTED,
+            data=typing_data,
+        )
+
+        print("[Dispatcher] Broadcaster.send_to_conversation() returned")
+        print("=" * 80)
 
     @staticmethod
     async def typing_stopped(
@@ -284,15 +303,34 @@ class ChatDispatcher:
         user: User,
     ) -> None:
         """Broadcast that a user stopped typing."""
+
+        print("=" * 80)
+        print("[Dispatcher] typing_stopped")
+        print("[Dispatcher] conversation:", conversation.id)
+        print("[Dispatcher] user:", user.id, user.username)
+        print("[Dispatcher] Calling Broadcaster.send_to_conversation()")
+
+        participants = await ChatDispatcher._get_participants(conversation)
+        typing_data = {
+            "conversation_id": str(conversation.id),
+            "user_id": str(user.id),
+            "username": user.username,
+            "is_typing": False,
+        }
+
         await Broadcaster.send_to_conversation(
             conversation=conversation,
             event=ChatEvents.TYPING_STOPPED,
-            data={
-                "conversation_id": str(conversation.id),
-                "user_id": str(user.id),
-                "username": user.username,
-            },
+            data=typing_data,
         )
+        await Broadcaster.send_to_users(
+            users=participants,
+            event=ChatEvents.TYPING_STOPPED,
+            data=typing_data,
+        )
+
+        print("[Dispatcher] Broadcaster.send_to_conversation() returned")
+        print("=" * 80)
 
     # ------------------------------------------------------------------
     # Presence Events
@@ -300,33 +338,27 @@ class ChatDispatcher:
 
     @staticmethod
     async def presence_updated(
-        *,
-        users: list[User],
-        user: User,
-        is_online: bool,
+        *, users: list[User], user: User, presence: dict
     ) -> None:
         """Broadcast an updated presence state."""
         await Broadcaster.send_to_users(
             users=users,
             event=ChatEvents.PRESENCE_UPDATED,
-            data={
-                "user_id": str(user.id),
-                "is_online": is_online,
-            },
+            data={"user_id": str(user.id), **presence},
         )
 
     @staticmethod
     async def presence_snapshot(
         *,
         user: User,
-        online_users: list[User],
+        presences: list[dict],
     ) -> None:
         """Send the current online users to a user."""
         await Broadcaster.send_to_user(
             user=user,
             event=ChatEvents.PRESENCE_SNAPSHOT,
             data={
-                "online": [str(u.id) for u in online_users],
+                "presences": presences,
             },
         )
 

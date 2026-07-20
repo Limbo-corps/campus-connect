@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from chat.models import Conversation, ConversationParticipant, Message
+from chat.models import Conversation, ConversationParticipant, Message, UserPresence
 from chat.selectors.message_selector import MessageSelector
 
 
@@ -12,6 +12,13 @@ class ChatUserSerializer(serializers.Serializer):
     first_name = serializers.CharField(read_only=True)
     last_name = serializers.CharField(read_only=True)
     avatar_url = serializers.CharField(read_only=True)
+
+    presence = serializers.SerializerMethodField()
+
+    def get_presence(self, obj):
+        if not hasattr(obj, "presence"):
+            return None
+        return UserPresenceSerializer(obj.presence).data
 
 
 class MessageReplyPreviewSerializer(serializers.ModelSerializer):
@@ -179,3 +186,18 @@ class ConversationSerializer(serializers.ModelSerializer):
         user = membership.user
         full = f"{user.first_name} {user.last_name}".strip()
         return full or user.username
+
+
+class UserPresenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserPresence
+        fields = [
+            "status",
+            "custom_status",
+            "custom_status_emoji",
+            "custom_status_expires_at",
+            "last_seen",
+        ]
+        read_only_fields = [
+            "last_seen",
+        ]

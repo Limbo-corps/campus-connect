@@ -9,6 +9,7 @@ from chat.views import (
     MessagesView,
     ParticipantsView,
     ReactionsView,
+    UserPresenceView,
 )
 
 urlpatterns = [
@@ -46,6 +47,11 @@ urlpatterns = [
         "conversations/<uuid:conversation_id>/read/",
         MarkReadView.as_view(),
         name="conversation-read",
+    ),
+    path(
+        "presence/",
+        UserPresenceView.as_view(),
+        name="user-presence",
     ),
     path(
         "messages/<uuid:message_id>/",

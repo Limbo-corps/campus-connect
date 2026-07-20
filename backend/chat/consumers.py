@@ -7,43 +7,41 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.core.serializers.json import DjangoJSONEncoder
 
 from chat.realtime.connections import ConnectionManager
+from chat.services.ping_service import PingService
 from chat.services.presence_service import PresenceService
 from chat.services.typing_service import TypingService
-from chat.services.ping_service import PingService
 from users.models import User
 
 logger = logging.getLogger(__name__)
+
+Handler = Callable[..., Awaitable[None]]
 
 
 class ChatConsumer(AsyncJsonWebsocketConsumer):
     """Handles authenticated websocket connections."""
 
-    handlers: dict[
-        str,
-        Callable[..., Awaitable[None]],
-    ] = {
+    handlers: dict[str, Handler] = {
         "typing": TypingService.handle,
-        # Lightweight client pings — handled as a no-op to avoid noisy logs.
         "ping": PingService.handle,
     }
 
     user: User
 
     async def connect(self) -> None:
-        """Authenticate and register the websocket connection."""
+        """Accept an authenticated websocket connection."""
         user = self.scope.get("user")
 
-        if user is None or user.is_anonymous:
+        if not isinstance(user, User) or user.is_anonymous:
             await self.close(code=4001)
             return
 
-        self.user = cast(User, user)
+        self.user = user
 
         await ConnectionManager.connect_user(
             user=self.user,
@@ -56,7 +54,15 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             user=self.user,
         )
 
-    async def disconnect(self, code: int) -> None:
+        logger.debug(
+            "WebSocket connected for user '%s'.",
+            self.user.id,
+        )
+
+    async def disconnect(
+        self,
+        code: int,
+    ) -> None:
         """Handle websocket disconnection."""
         del code
 
@@ -70,6 +76,11 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         await ConnectionManager.disconnect_user(
             user=self.user,
             channel_name=self.channel_name,
+        )
+
+        logger.debug(
+            "WebSocket disconnected for user '%s'.",
+            self.user.id,
         )
 
     async def receive_json(
@@ -94,16 +105,23 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
             )
             return
 
-        await handler(
-            user=self.user,
-            payload=content,
-        )
+        try:
+            await handler(
+                user=self.user,
+                payload=content,
+            )
+
+        except Exception:
+            logger.exception(
+                "Failed to handle websocket action '%s'.",
+                action,
+            )
 
     async def chat_event(
         self,
         event: dict[str, Any],
     ) -> None:
-        """Forward server events to the client."""
+        """Forward an event from the channel layer to the websocket."""
         await self.send_json(
             event["message"],
         )
@@ -113,7 +131,7 @@ class ChatConsumer(AsyncJsonWebsocketConsumer):
         cls,
         content: Any,
     ) -> str:
-        """Serialize websocket payloads."""
+        """Serialize websocket payloads using Django's JSON encoder."""
         return json.dumps(
             content,
             cls=DjangoJSONEncoder,

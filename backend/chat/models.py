@@ -1,3 +1,4 @@
+from django.utils import timezone
 import uuid
 
 from django.conf import settings
@@ -231,3 +232,56 @@ class MessageReaction(models.Model):
 
     def __str__(self) -> str:
         return f"{self.user} • {self.emoji} • {self.message.pk}"
+
+
+class UserPresence(models.Model):
+    class Status(models.TextChoices):
+        ONLINE = "online", "Online"
+        IDLE = "idle", "Idle"
+        DND = "dnd", "Do Not Disturb"
+        INVISIBLE = "invisible", "Invisible"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="presence",
+    )
+
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.ONLINE,
+    )
+
+    custom_status = models.CharField(
+        max_length=128,
+        blank=True,
+    )
+
+    custom_status_emoji = models.CharField(
+        max_length=32,
+        blank=True,
+    )
+
+    custom_status_expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+    )
+
+    last_seen = models.DateTimeField(
+        default=timezone.now,
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+    )
+
+    class Meta:
+        db_table = "users_presence"
+
+    def __str__(self) -> str:
+        return f"{self.user.username} Presence"

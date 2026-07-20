@@ -28,7 +28,9 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
 
   const { user } = useAuth();
   const meId = user?.id ?? null;
-  const { conversations, loading, isOnline, upsertConversation } = useChat();
+  const { conversations, loading, getPresence, upsertConversation } = useChat();
+
+  const myPresence = getPresence(meId);
 
   const filteredChats = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -50,7 +52,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="relative mx-auto flex h-full w-full max-w-[1600px] animate-in fade-in gap-4 p-4 duration-300 lg:grid lg:grid-cols-12">
+    <div className="relative flex h-full w-full animate-in fade-in gap-4 p-2 sm:p-4 duration-300 lg:grid lg:grid-cols-12">
       {/* ── LEFT RAIL: CONVERSATIONS PANEL ── */}
       <aside
         className={`col-span-12 flex h-full flex-col overflow-hidden lg:col-span-4 xl:col-span-3 ${
@@ -122,14 +124,14 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
                   conversation={conversation}
                   active={conversation.id === activeChatId}
                   meId={meId}
-                  isOnline={isOnline}
+                  getPresence={getPresence}
                 />
               ))
             )}
           </div>
 
           <div className="mt-auto border-t border-[--surface-secondary] pt-2.5">
-            <ProfileDeck />
+            <ProfileDeck presence={myPresence} />
           </div>
         </Card>
       </aside>

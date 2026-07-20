@@ -25,7 +25,11 @@ from chat.models import Conversation, ConversationParticipant, Message
 from chat.realtime.dispatcher import ChatDispatcher
 from chat.selectors.conversation_selector import ConversationSelector
 from chat.selectors.message_selector import MessageSelector
-from chat.serializers import ConversationSerializer, MessageSerializer
+from chat.serializers import (
+    ConversationSerializer,
+    MessageSerializer,
+    UserPresenceSerializer,
+)
 from chat.services.conversation_service import ConversationService
 from chat.services.message_service import MessageService
 from users.models import User
@@ -171,8 +175,8 @@ class ConversationDetailView(APIView):
         except ChatException as exc:
             return _error(exc)
 
-        conversation.delete()
         async_to_sync(ChatDispatcher.conversation_deleted)(conversation)
+        conversation.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -467,3 +471,43 @@ class MarkReadView(APIView):
                 "last_read_message": str(message.id),
             }
         )
+
+
+class UserPresenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            serializer = UserPresenceSerializer(request.user.presence)
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
+        except ChatException as exc:
+            return _error(exc)
+
+    def patch(self, request):
+        try:
+            serializer = UserPresenceSerializer(
+                request.user.presence,
+                data=request.data,
+                partial=True,
+            )
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            presence = dict(serializer.data)
+            contacts = ConversationSelector.get_contacts(request.user)
+
+            async_to_sync(ChatDispatcher.presence_updated)(
+                users=contacts + [request.user],
+                user=request.user,
+                presence=presence,
+            )
+
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
+        except ChatException as exc:
+            return _error(exc)

@@ -5,9 +5,12 @@ import logging
 from channels.db import database_sync_to_async
 from django.core.cache import cache
 
+from chat.models import UserPresence
 from chat.realtime.dispatcher import ChatDispatcher
 from chat.selectors.conversation_selector import ConversationSelector
 from users.models import User
+
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,33 @@ class PresenceService:
     @staticmethod
     def _key(user: User) -> str:
         return PRESENCE_KEY.format(user_id=user.id)
+
+    @staticmethod
+    def _update_last_seen(user: User) -> None:
+        UserPresence.objects.filter(user=user).update(
+            last_seen=timezone.now(),
+        )
+
+    @classmethod
+    def get_effective_presence(
+        cls,
+        user: User,
+    ) -> dict:
+        """
+        Return the effective presence for the user.
+        """
+        presence, _ = UserPresence.objects.get_or_create(
+            user=user,
+        )
+
+        return {
+            "is_online": cls.is_online(user),
+            "status": presence.status,
+            "custom_status": presence.custom_status,
+            "custom_status_emoji": presence.custom_status_emoji,
+            "custom_status_expires_at": presence.custom_status_expires_at,
+            "last_seen": presence.last_seen,
+        }
 
     @classmethod
     async def connected(
@@ -36,20 +66,24 @@ class PresenceService:
             ConversationSelector.get_contacts,
         )(user)
 
-        online_users = await database_sync_to_async(
-            cls.get_online_users,
-        )(contacts)
+        presences = await database_sync_to_async(
+            cls.get_presences,
+        )(contacts + [user])
+
+        presence = await database_sync_to_async(
+            cls.get_effective_presence,
+        )(user)
 
         await ChatDispatcher.presence_snapshot(
             user=user,
-            online_users=online_users,
+            presences=presences,
         )
 
         if became_online:
             await ChatDispatcher.presence_updated(
                 users=contacts,
                 user=user,
-                is_online=True,
+                presence=presence,
             )
 
     @classmethod
@@ -65,14 +99,22 @@ class PresenceService:
         if not went_offline:
             return
 
+        await database_sync_to_async(
+            cls._update_last_seen,
+        )(user)
+
         contacts = await database_sync_to_async(
             ConversationSelector.get_contacts,
+        )(user)
+
+        presence = await database_sync_to_async(
+            cls.get_effective_presence,
         )(user)
 
         await ChatDispatcher.presence_updated(
             users=contacts,
             user=user,
-            is_online=False,
+            presence=presence,
         )
 
     @classmethod
@@ -162,9 +204,15 @@ class PresenceService:
             return False
 
     @classmethod
-    def get_online_users(
+    def get_presences(
         cls,
-        users,
-    ) -> list[User]:
-        """Return the users that are currently online."""
-        return [user for user in users if cls.is_online(user)]
+        users: list[User],
+    ) -> list[dict]:
+        """Return the effective presence for each user."""
+        return [
+            {
+                "user_id": str(user.id),
+                **cls.get_effective_presence(user),
+            }
+            for user in users
+        ]
