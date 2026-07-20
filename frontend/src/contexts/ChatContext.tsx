@@ -30,8 +30,9 @@ interface ChatContextValue {
   loading: boolean;
   connected: boolean;
   totalUnread: number;
-  onlineUserIds: Set<string>;
+  presences: PresenceState;
   typing: TypingState;
+  getPresence(userId: string | null | undefined): PresencePayload | undefined;
   isOnline(userId: string | null | undefined): boolean;
   refresh(): Promise<void>;
   setActiveConversation(id: string | null): void;
@@ -42,6 +43,8 @@ interface ChatContextValue {
   /** Subscribe to raw socket events. Returns an unsubscribe fn. */
   subscribe(fn: (event: ChatEvent) => void): () => void;
 }
+
+type PresenceState = Record<string, PresencePayload>; // userId -> isOnline
 
 const ChatContext = createContext<ChatContextValue | null>(null);
 
@@ -59,7 +62,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
-  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  // const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
+  const [presences, setPresences] = useState<PresenceState>({});
   const [typing, setTyping] = useState<TypingState>({});
 
   const socketRef = useRef<ChatSocket | null>(null);
@@ -220,24 +224,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const applyTyping = useCallback(
     (payload: TypingPayload) => {
       if (payload.user_id === meId) return;
-      const timerKey = `${payload.conversation}:${payload.user_id}`;
+      const timerKey = `${payload.conversation_id}:${payload.user_id}`;
       const existingTimer = typingTimers.current[timerKey];
       if (existingTimer) clearTimeout(existingTimer);
 
       if (payload.is_typing) {
         setTyping((prev) => ({
           ...prev,
-          [payload.conversation]: {
-            ...(prev[payload.conversation] ?? {}),
+          [payload.conversation_id]: {
+            ...(prev[payload.conversation_id] ?? {}),
             [payload.user_id]: payload.username,
           },
         }));
         typingTimers.current[timerKey] = setTimeout(
-          () => clearTyping(payload.conversation, payload.user_id),
+          () => clearTyping(payload.conversation_id, payload.user_id),
           6000,
         );
       } else {
-        clearTyping(payload.conversation, payload.user_id);
+        clearTyping(payload.conversation_id, payload.user_id);
       }
     },
     [meId, clearTyping],
@@ -278,7 +282,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       queueMicrotask(() => {
         setConversations([]);
         setConnected(false);
-        setOnlineUserIds(new Set());
+        setPresences({});
         setLoading(true);
       });
       return;
@@ -309,6 +313,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Subscribe using the stable tracking ref object
     const offEvents = socket.subscribe((event: ChatEvent) => {
+      console.log("[ws]", event);
       const handlers = eventHandlersRef.current;
       handlers.emitEvent(event);
 
@@ -346,19 +351,26 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         case "read_receipt.updated":
           handlers.applyReadReceipt(event.data as ReadReceiptPayload);
           break;
-        case "presence.snapshot":
-          setOnlineUserIds(
-            new Set((event.data as { online: string[] }).online),
+        case "presence.snapshot": {
+          const { presences } = event.data as {
+            presences: PresencePayload[];
+          };
+
+          setPresences(
+            Object.fromEntries(
+              presences.map((presence) => [presence.user_id, presence]),
+            ),
           );
           break;
+        }
         case "presence.updated": {
-          const { user_id, is_online } = event.data as PresencePayload;
-          setOnlineUserIds((prev) => {
-            const next = new Set(prev);
-            if (is_online) next.add(user_id);
-            else next.delete(user_id);
-            return next;
-          });
+          const presence = event.data as PresencePayload;
+
+          setPresences((prev) => ({
+            ...prev,
+            [presence.user_id]: presence,
+          }));
+
           break;
         }
         case "typing.started":
@@ -388,10 +400,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const getPresence = useCallback(
+    (userId: string | null | undefined) =>
+      userId ? presences[userId] : undefined,
+    [presences],
+  );
+
   const isOnline = useCallback(
     (userId: string | null | undefined) =>
-      userId != null && onlineUserIds.has(userId),
-    [onlineUserIds],
+      userId != null && presences[userId]?.is_online === true,
+    [presences],
   );
 
   const totalUnread = useMemo(
@@ -404,8 +422,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     loading,
     connected,
     totalUnread,
-    onlineUserIds,
+    presences,
     typing,
+    getPresence,
     isOnline,
     refresh,
     setActiveConversation,

@@ -1,6 +1,11 @@
 // @/lib/chat/api.ts
 import api from "@/lib/api";
-import type { Conversation, Message, MessagePage } from "@/types";
+import type {
+  Conversation,
+  Message,
+  MessagePage,
+  PresencePayload,
+} from "@/types";
 
 export async function getConversations(): Promise<Conversation[]> {
   const { data } = await api.get<Conversation[]>("/chat/conversations/");
@@ -164,4 +169,24 @@ export async function markRead(
   await api.post(`/chat/conversations/${conversationId}/read/`, {
     message_id: messageId,
   });
+}
+
+export async function getPresence(): Promise<PresencePayload> {
+  const { data } = await api.get<PresencePayload>("/chat/presence/");
+  return data;
+}
+
+export async function updatePresence(
+  payload: Partial<
+    Pick<
+      PresencePayload,
+      | "status"
+      | "custom_status"
+      | "custom_status_emoji"
+      | "custom_status_expires_at"
+    >
+  >,
+): Promise<PresencePayload> {
+  const { data } = await api.patch<PresencePayload>("/chat/presence/", payload);
+  return data;
 }

@@ -3,14 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Card, Spinner } from "@heroui/react";
-import useSWR from "swr";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useChat } from "@/contexts/ChatContext";
-import { useCampuses } from "@/hooks/useCampuses";
 import { useMessages, type LocalMessage } from "@/hooks/useMessages";
 import * as chatApi from "@/lib/chat/api";
-import { getUserByUsername } from "@/lib/users/api";
 import { otherParticipant } from "@/lib/chat/format";
 import type { Conversation } from "@/types";
 
@@ -20,7 +17,6 @@ import { BOT_USER, isBotCommand, runBotCommand } from "@/lib/chat/bot";
 
 // Sub-components
 import { ChatThreadCentral } from "@/components/chat/ChatThreadCentral";
-import { ChatRightRail } from "@/components/chat/ChatRightRail";
 
 export default function ChatDetailPage() {
   const params = useParams();
@@ -29,12 +25,10 @@ export default function ChatDetailPage() {
 
   const { user } = useAuth();
   const meId = user?.id ?? null;
-  const currentCampusId = user?.campus;
 
-  const { campuses } = useCampuses();
   const {
     conversations,
-    isOnline,
+    getPresence,
     typing,
     setActiveConversation,
     markRead,
@@ -42,11 +36,6 @@ export default function ChatDetailPage() {
     removeConversation,
     refresh,
   } = useChat();
-
-  const activeCampus = useMemo(() => {
-    if (!currentCampusId || !campuses) return null;
-    return campuses.find((c) => c.id === currentCampusId) ?? null;
-  }, [currentCampusId, campuses]);
 
   const {
     messages,
@@ -64,24 +53,15 @@ export default function ChatDetailPage() {
   const [fetched, setFetched] = useState<Conversation | null>(null);
   const conversation = listConversation ?? fetched;
   const [notFound, setNotFound] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [replyTo, setReplyTo] = useState<LocalMessage | null>(null);
   const [editing, setEditing] = useState<LocalMessage | null>(null);
   const [addPeopleOpen, setAddPeopleOpen] = useState(false);
   const [botMessages, setBotMessages] = useState<LocalMessage[]>([]);
 
-  const checkUserOnlineStatus = useCallback(
-    (userId?: string) => {
-      if (!userId) return false;
-      return typeof isOnline === "function"
-        ? isOnline(userId)
-        : !!isOnline?.[userId];
-    },
-    [isOnline],
-  );
-
   useEffect(() => {
-    if (!conversationId || listConversation) return;
+    if (!conversationId || listConversation || isDeleting) return;
     let isMounted = true;
 
     chatApi
@@ -96,34 +76,21 @@ export default function ChatDetailPage() {
     return () => {
       isMounted = false;
     };
-  }, [conversationId, listConversation]);
-
-  const otherBase = useMemo(() => {
-    if (!conversation) return null;
-    return otherParticipant(conversation, meId);
-  }, [conversation, meId]);
-
-  const { data: fullOtherProfile } = useSWR(
-    conversation?.is_group || !otherBase?.username
-      ? null
-      : ["chat-user", otherBase.username],
-    () => getUserByUsername(otherBase!.username),
-  );
+  }, [conversationId, listConversation, isDeleting]);
 
   const other = useMemo(() => {
-    if (!otherBase) return null;
+    if (!conversation) return null;
+    const base = otherParticipant(conversation, meId);
+    if (!base) return null;
 
-    // Construct a ChatUser-shaped object using the lightweight otherBase
-    // and any enriched profile fields we fetched. Avoid propagating
-    // server-side-only fields (like email) that don't belong on ChatUser.
     return {
-      id: otherBase.id,
-      username: otherBase.username,
-      first_name: fullOtherProfile?.first_name ?? otherBase.first_name ?? "",
-      last_name: fullOtherProfile?.last_name ?? otherBase.last_name ?? "",
-      avatar_url: fullOtherProfile?.avatar_url ?? otherBase.avatar_url ?? "",
+      id: base.id,
+      username: base.username,
+      first_name: base.first_name ?? "",
+      last_name: base.last_name ?? "",
+      avatar_url: base.avatar_url ?? "",
     };
-  }, [otherBase, fullOtherProfile]);
+  }, [conversation, meId]);
 
   useEffect(() => {
     setActiveConversation(conversationId);
@@ -213,29 +180,50 @@ export default function ChatDetailPage() {
     );
   }, [messages, botMessages]);
 
-  const handleRename = useCallback(async () => {
-    if (!conversation) return;
-    const name = window.prompt("Group name", conversation.display_name);
-    if (name && name.trim()) {
-      await chatApi.renameGroup(conversation.id, name.trim());
-    }
-  }, [conversation]);
+  const handleRename = useCallback(
+    async (newName: string) => {
+      if (!conversation) return;
+
+      try {
+        const updated = await chatApi.renameGroup(conversation.id, newName);
+
+        setFetched((prev) =>
+          prev ? { ...prev, display_name: newName } : updated,
+        );
+
+        await refresh();
+      } catch (error) {
+        console.error("Failed to rename group:", error);
+      }
+    },
+    [conversation, refresh],
+  );
 
   const handleLeave = useCallback(async () => {
     if (!conversation) return;
     if (window.confirm("Leave this group?")) {
-      await chatApi.leaveConversation(conversation.id);
-      removeConversation(conversation.id);
-      router.push("/chat");
+      try {
+        setIsDeleting(true);
+        await chatApi.leaveConversation(conversation.id);
+        router.push("/chat");
+        removeConversation(conversation.id);
+      } catch (error) {
+        setIsDeleting(false);
+        console.error("Failed to leave conversation:", error);
+      }
     }
   }, [conversation, removeConversation, router]);
 
   const handleDeleteConversation = useCallback(async () => {
     if (!conversation) return;
-    if (window.confirm("Delete this conversation for everyone?")) {
+    try {
+      setIsDeleting(true);
       await chatApi.deleteConversation(conversation.id);
-      removeConversation(conversation.id);
       router.push("/chat");
+      removeConversation(conversation.id);
+    } catch (error) {
+      setIsDeleting(false);
+      console.error("Failed to delete conversation: ", error);
     }
   }, [conversation, removeConversation, router]);
 
@@ -270,12 +258,12 @@ export default function ChatDetailPage() {
   }
 
   return (
-    <div className="grid h-full w-full grid-cols-9 gap-4">
+    <div className="flex h-full w-full flex-col">
       <ChatThreadCentral
         conversation={conversation}
         meId={meId}
         user={user}
-        isOnline={isOnline}
+        getPresence={getPresence}
         typingText={typingText}
         loading={loading}
         loadingOlder={loadingOlder}
@@ -296,15 +284,6 @@ export default function ChatDetailPage() {
         handleTyping={handleTyping}
         edit={edit}
         setAddPeopleOpen={setAddPeopleOpen}
-      />
-
-      <ChatRightRail
-        conversation={conversation}
-        other={other}
-        meId={meId}
-        activeCampus={activeCampus}
-        otherIsOnline={checkUserOnlineStatus(other?.id)}
-        checkUserOnlineStatus={checkUserOnlineStatus}
       />
 
       <AddParticipantModal

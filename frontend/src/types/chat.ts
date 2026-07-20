@@ -1,6 +1,7 @@
 // @/types/chat.ts
 
-export type MessageType = "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "SYSTEM";
+export type MessageType =
+  "TEXT" | "IMAGE" | "VIDEO" | "AUDIO" | "FILE" | "SYSTEM";
 
 export interface ChatUser {
   id: string;
@@ -110,7 +111,7 @@ export interface ChatEvent<T = unknown> {
 }
 
 export interface TypingPayload {
-  conversation: string;
+  conversation_id: string;
   user_id: string;
   username: string;
   is_typing: boolean;
@@ -119,5 +120,9 @@ export interface TypingPayload {
 export interface PresencePayload {
   user_id: string;
   is_online: boolean;
+  status: string;
+  custom_status: string | null;
+  custom_status_emoji: string | null;
+  custom_status_expires_at: string | null;
+  last_seen: string | null;
 }
-

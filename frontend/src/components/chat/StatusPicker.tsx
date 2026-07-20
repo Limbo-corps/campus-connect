@@ -1,134 +1,184 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Dropdown, Input, Label, Separator, Button } from "@heroui/react";
+import { Check, ChevronDown, X } from "lucide-react";
 
+import * as chatApi from "@/lib/chat/api";
 import {
   STATUS_OPTIONS,
-  getStatus,
-  setStatus,
   statusOption,
   type StatusMode,
-  type UserStatus,
 } from "@/lib/chat/status";
 
 const QUICK_EMOJIS = ["💬", "📚", "🎧", "🎮", "😴", "🍕", "🔥", "🎉"];
 
-/** Small dropdown to set presence mode + a custom status. Self-persisting. */
 export function StatusPicker() {
-  const [open, setOpen] = useState(false);
-  const [status, setLocal] = useState<UserStatus>({ mode: "online" });
-  const ref = useRef<HTMLDivElement>(null);
+  const [mode, setMode] = useState<StatusMode>("online");
+  const [text, setText] = useState<string>("");
+  const [emoji, setEmoji] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState<boolean>(false);
 
+  // Fetch current user presence on mount
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync status from localStorage on mount
-    setLocal(getStatus());
+    let isMounted = true;
+    chatApi
+      .getPresence()
+      .then((p) => {
+        if (!isMounted || !p) return;
+        setMode((p.status as StatusMode) || "online");
+        setText(p.custom_status || "");
+        setEmoji(p.custom_status_emoji || undefined);
+      })
+      .catch((err) => console.error("Failed to load presence:", err));
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
-
-  const update = (next: UserStatus) => {
-    setLocal(next);
-    setStatus(next);
+  const sendPresenceUpdate = async (next: {
+    status?: string;
+    custom_status?: string | null;
+    custom_status_emoji?: string | null;
+  }) => {
+    try {
+      setLoading(true);
+      await chatApi.updatePresence(next);
+    } catch (err) {
+      console.error("Failed to update presence:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const chooseMode = (mode: StatusMode) => update({ ...status, mode });
+  const chooseMode = async (nextMode: StatusMode) => {
+    setMode(nextMode);
+    await sendPresenceUpdate({ status: nextMode });
+  };
 
-  const current = statusOption(status.mode);
+  const updateText = async (val: string) => {
+    setText(val);
+    await sendPresenceUpdate({ custom_status: val || null });
+  };
+
+  const updateEmoji = async (e?: string) => {
+    setEmoji(e);
+    await sendPresenceUpdate({ custom_status_emoji: e || null });
+  };
+
+  const clearCustomStatus = async () => {
+    setText("");
+    setEmoji(undefined);
+    await sendPresenceUpdate({
+      custom_status: null,
+      custom_status_emoji: null,
+    });
+  };
+
+  const current = statusOption(mode);
 
   return (
-    <div className="relative" ref={ref}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-[--surface-secondary]/50"
-      >
-        <span
-          className="h-2 w-2 shrink-0 rounded-full"
-          style={{ backgroundColor: current.hex }}
-        />
-        <span className="min-w-0 flex-1 truncate text-[10px] text-[--muted]">
-          {status.text
-            ? `${status.emoji ?? ""} ${status.text}`.trim()
-            : current.label}
-        </span>
+    <Dropdown>
+      <Dropdown.Trigger className="flex w-full items-center justify-between gap-1.5 px-1.5 py-1 font-normal text-left transition-colors hover:bg-[--surface-secondary]/50 outline-none">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span
+            className="h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: current.hex }}
+          />
+          <span className="min-w-0 flex-1 truncate text-[10px] text-[--muted]">
+            {text ? `${emoji ?? ""} ${text}`.trim() : current.label}
+          </span>
+        </div>
         <ChevronDown size={12} className="shrink-0 text-[--muted]" />
-      </button>
+      </Dropdown.Trigger>
 
-      {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-2 w-60 overflow-hidden rounded-xl border border-[--surface-secondary] bg-[--surface] p-1.5 shadow-2xl">
-          {STATUS_OPTIONS.map((o) => (
-            <button
-              key={o.mode}
-              type="button"
-              onClick={() => chooseMode(o.mode)}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[--surface-secondary]"
-            >
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: o.hex }}
-              />
-              <span className="flex-1">
-                <span className="block text-xs font-semibold text-[--foreground]">
-                  {o.label}
-                </span>
-                <span className="block text-[10px] text-[--muted]">
-                  {o.description}
-                </span>
-              </span>
-              {status.mode === o.mode && (
-                <Check size={13} className="text-[--accent]" />
-              )}
-            </button>
-          ))}
+      <Dropdown.Popover
+        placement="bottom start"
+        className="w-64 p-2 rounded-xl border border-[--surface-secondary] bg-[--surface] shadow-2xl"
+      >
+        <Dropdown.Menu onAction={(key) => chooseMode(key as StatusMode)}>
+          <Dropdown.Section>
+            {STATUS_OPTIONS.map((o) => (
+              <Dropdown.Item
+                key={o.mode}
+                id={o.mode}
+                textValue={o.label}
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-[--surface-secondary]"
+              >
+                <div className="flex w-full items-center gap-2.5">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: o.hex }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <Label className="block text-xs font-semibold text-[--foreground]">
+                      {o.label}
+                    </Label>
+                    <span className="block text-[10px] text-[--muted] truncate">
+                      {o.description}
+                    </span>
+                  </div>
+                  {mode === o.mode && (
+                    <Check size={13} className="text-[--accent] shrink-0" />
+                  )}
+                </div>
+              </Dropdown.Item>
+            ))}
+          </Dropdown.Section>
+        </Dropdown.Menu>
 
-          <div className="mt-1.5 border-t border-[--surface-secondary] px-1.5 pt-2">
-            <p className="mb-1 text-[10px] font-bold uppercase tracking-wider text-[--muted]">
-              Custom status
-            </p>
-            <div className="flex items-center gap-1.5 rounded-lg border border-[--surface-secondary] px-2 py-1">
-              <span className="text-sm">{status.emoji || "💬"}</span>
-              <input
-                value={status.text ?? ""}
-                onChange={(e) => update({ ...status, text: e.target.value })}
-                placeholder="What's happening?"
-                maxLength={60}
-                className="w-full bg-transparent text-xs text-[--foreground] outline-none placeholder:text-[--muted]"
-              />
-              {status.text && (
-                <button
-                  type="button"
-                  onClick={() => update({ ...status, text: "", emoji: undefined })}
-                  className="text-[10px] text-[--muted] hover:text-danger"
-                >
-                  clear
-                </button>
-              )}
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {QUICK_EMOJIS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  onClick={() => update({ ...status, emoji: e })}
-                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-base transition-colors hover:bg-[--surface-secondary] ${
-                    status.emoji === e ? "bg-[--accent]/15" : ""
-                  }`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
+        <Separator className="my-2 border-t border-[--surface-secondary]" />
+
+        <div className="px-1.5 pt-1 space-y-2">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-[--muted]">
+            Custom status
+          </p>
+
+          <div className="flex items-center gap-1.5 rounded-lg border border-[--surface-secondary] px-2 py-1 bg-transparent">
+            <span className="text-sm">{emoji || "💬"}</span>
+            <Input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onBlur={() => updateText(text)}
+              placeholder="What's happening?"
+              maxLength={60}
+              variant="secondary"
+              fullWidth
+              disabled={loading}
+              className="border-none bg-transparent px-0 text-xs text-[--foreground] shadow-none focus-visible:ring-0 placeholder:text-[--muted]"
+            />
+            {(text || emoji) && (
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
+                onPress={clearCustomStatus}
+                className="h-5 w-5 min-w-5 p-0 text-[--muted] hover:text-danger"
+              >
+                <X size={10} />
+              </Button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1 pt-1">
+            {QUICK_EMOJIS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => updateEmoji(e)}
+                className={`flex h-7 w-7 items-center justify-center rounded-lg text-sm transition-colors hover:bg-[--surface-secondary] ${
+                  emoji === e
+                    ? "bg-[--accent]/15 border border-[--accent]/30"
+                    : ""
+                }`}
+              >
+                {e}
+              </button>
+            ))}
           </div>
         </div>
-      )}
-    </div>
+      </Dropdown.Popover>
+    </Dropdown>
   );
 }

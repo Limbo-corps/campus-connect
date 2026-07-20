@@ -11,4 +11,15 @@
       "format_on_save": "on",
     },
   },
+  "lsp": {
+    "tailwindcss-language-server": {
+      "settings": {
+        "tailwindCSS": {
+          "lint": {
+            "suggestCanonicalClasses": "ignore",
+          },
+        },
+      },
+    },
+  },
 }

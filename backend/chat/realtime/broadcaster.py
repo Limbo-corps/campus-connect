@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable
+from datetime import date, datetime
 from typing import Any
+from uuid import UUID
 
 from channels.layers import get_channel_layer
 
@@ -26,28 +28,30 @@ class Broadcaster:
     """Centralizes websocket broadcasting."""
 
     @staticmethod
+    def _normalize(obj: Any) -> Any:
+        """Convert non-JSON-serializable values into JSON-safe types."""
+        if isinstance(obj, UUID):
+            return str(obj)
+
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+
+        if isinstance(obj, dict):
+            return {key: Broadcaster._normalize(value) for key, value in obj.items()}
+
+        if isinstance(obj, (list, tuple, set)):
+            return [Broadcaster._normalize(value) for value in obj]
+
+        return obj
+
+    @classmethod
     async def send_to_group(
+        cls,
         group: str,
         event: str,
         data: dict[str, Any],
     ) -> None:
         """Send an event to a Channels group."""
-
-        def _normalize(obj: Any) -> Any:
-            """Recursively convert non-serializable types (UUID, date/time) to strings."""
-            from uuid import UUID
-            import datetime
-
-            if isinstance(obj, UUID):
-                return str(obj)
-            if isinstance(obj, (datetime.datetime, datetime.date)):
-                return obj.isoformat()
-            if isinstance(obj, dict):
-                return {k: _normalize(v) for k, v in obj.items()}
-            if isinstance(obj, (list, tuple, set)):
-                return [_normalize(v) for v in obj]
-            return obj
-
         channel_layer = get_channel_layer()
 
         if channel_layer is None:
@@ -61,14 +65,16 @@ class Broadcaster:
                     "type": "chat.event",
                     "message": {
                         "event": event,
-                        "data": _normalize(data),
+                        "data": cls._normalize(data),
                     },
                 },
             )
+
         except Exception:
             logger.exception(
-                "Failed to broadcast websocket event '%s'.",
+                "Failed to broadcast websocket event '%s' to group '%s'.",
                 event,
+                group,
             )
 
     @classmethod
@@ -78,11 +84,11 @@ class Broadcaster:
         event: str,
         data: dict[str, Any],
     ) -> None:
-        """Broadcast an event to a user's active connections."""
+        """Send an event to a single user."""
         await cls.send_to_group(
-            user_group(user),
-            event,
-            data,
+            group=user_group(user),
+            event=event,
+            data=data,
         )
 
     @classmethod
@@ -92,12 +98,12 @@ class Broadcaster:
         event: str,
         data: dict[str, Any],
     ) -> None:
-        """Broadcast the same event to multiple users."""
+        """Send an event to multiple users."""
         for user in users:
             await cls.send_to_user(
-                user,
-                event,
-                data,
+                user=user,
+                event=event,
+                data=data,
             )
 
     @classmethod
@@ -107,9 +113,9 @@ class Broadcaster:
         event: str,
         data: dict[str, Any],
     ) -> None:
-        """Broadcast an event to a conversation."""
+        """Send an event to all members of a conversation."""
         await cls.send_to_group(
-            conversation_group(conversation),
-            event,
-            data,
+            group=conversation_group(conversation),
+            event=event,
+            data=data,
         )

@@ -1,5 +1,6 @@
 // @/lib/chat/socket.ts
 import type { ChatEvent } from "@/types";
+import { debugGroup } from "@/lib/debug";
 
 /**
  * Resolve the WebSocket endpoint for the chat consumer.
@@ -133,6 +134,7 @@ export class ChatSocket {
 
   /** Notify the server that the user is (or has stopped) typing. */
   sendTyping(conversationId: string, isTyping: boolean) {
+    debugGroup("sendTyping", conversationId, isTyping);
     this.send({
       action: "typing",
       conversation: conversationId,
