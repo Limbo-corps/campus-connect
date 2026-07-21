@@ -690,8 +690,12 @@ export default function GlobalProfilePage() {
                   {BADGES.map(({ emoji, label, desc, unlocked }) => (
                     <Tooltip key={label}>
                       <Tooltip.Trigger>
-                        <div
-                          className={`flex cursor-default flex-col items-center gap-1 rounded-xl border p-2 text-center transition-all ${
+                        {/* Button (not a div) so it's a pressable/focusable
+                            trigger — avoids React Aria's "PressResponder
+                            without a pressable child" warning. */}
+                        <Button
+                          variant="ghost"
+                          className={`flex h-auto min-w-0 cursor-default flex-col items-center gap-1 rounded-xl border p-2 text-center transition-all ${
                             unlocked
                               ? "border-[--accent]/30 bg-[--accent]/8"
                               : "border-[--surface-secondary] opacity-35 grayscale"
@@ -701,7 +705,7 @@ export default function GlobalProfilePage() {
                           <span className="text-[8px] font-semibold leading-tight text-[--muted]">
                             {label}
                           </span>
-                        </div>
+                        </Button>
                       </Tooltip.Trigger>
                       <Tooltip.Content showArrow>
                         <Typography.Paragraph size="xs">

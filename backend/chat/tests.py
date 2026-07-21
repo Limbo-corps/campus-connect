@@ -215,9 +215,15 @@ class MessageRestTests(TestCase):
         )
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data["reactions"]), 1)
-        self.assertEqual(res.data["reactions"][0]["emoji"], "🔥")
-        self.assertEqual(res.data["reactions"][0]["count"], 1)
-        self.assertIn(str(self.alice.id), res.data["reactions"][0]["user_ids"])
+        group = res.data["reactions"][0]
+        self.assertEqual(group["emoji"], "🔥")
+        self.assertEqual(group["count"], 1)
+        self.assertIn(str(self.alice.id), group["user_ids"])
+        # The tooltip needs real usernames, not a placeholder (issue #15).
+        self.assertEqual(
+            group["users"],
+            [{"id": str(self.alice.id), "name": self.alice.username}],
+        )
 
         # Toggling the same emoji removes it.
         res = self.client.post(

@@ -43,7 +43,7 @@ export const MessageReactionsAndStatus: React.FC<
     if (reaction.users && reaction.users.length > 0) {
       names = reaction.users.map((u) => (u.id === meId ? "You" : u.name));
     } else if (reaction.user_ids && reaction.user_ids.length > 0) {
-      names = reaction.user_ids.map((id) => (id === meId ? "You" : "User"));
+      names = reaction.user_ids.map((id) => (id === meId ? "You" : "Unknown"));
     }
 
     // Fallback if no user list is provided
@@ -85,8 +85,8 @@ export const MessageReactionsAndStatus: React.FC<
                     isDisabled={!canReact}
                     className={`flex items-center gap-1.5 border px-2.5 py-1 min-w-0 h-auto text-xs font-medium rounded-full transition-all active:scale-95 select-none ${
                       reacted
-                        ? "border-[var(--accent)]/50 bg-[var(--accent)]/15 text-[var(--foreground)] shadow-sm"
-                        : "border-white/10 bg-[var(--surface-secondary)]/50 text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
+                        ? "border-(--accent)/50 bg-(--accent)/15 text-(--foreground) shadow-sm"
+                        : "border-white/10 bg-(--surface-secondary)/50 text-(--muted) hover:bg-(--surface-secondary) hover:text-(--foreground)"
                     }`}
                   >
                     <span>{r.emoji}</span>
@@ -95,7 +95,7 @@ export const MessageReactionsAndStatus: React.FC<
                 </Tooltip.Trigger>
                 <Tooltip.Content
                   placement="top"
-                  className="bg-[var(--surface)] border border-[var(--border)] text-[var(--foreground)] text-xs px-2 py-1 rounded-md shadow-xl backdrop-blur-md max-w-xs"
+                  className="bg-(--surface) border border-(--border) text-(--foreground) text-xs px-2 py-1 rounded-md shadow-xl backdrop-blur-md max-w-xs"
                 >
                   <Tooltip.Arrow />
                   {tooltipText}
@@ -106,12 +106,12 @@ export const MessageReactionsAndStatus: React.FC<
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 text-[10px] text-[var(--muted)] ml-auto select-none">
+      <div className="flex items-center gap-1.5 text-[10px] text-(--muted) ml-auto select-none">
         {message.is_edited && !deleted && <span>(edited)</span>}
 
         {isMe && !message.pending && !message.failed && !deleted && (
           <span
-            className="inline-flex items-center text-[var(--accent)]"
+            className="inline-flex items-center text-(--accent)"
             title={isSeen ? "Seen" : "Delivered"}
           >
             {isSeen ? (
@@ -123,7 +123,7 @@ export const MessageReactionsAndStatus: React.FC<
         )}
 
         {message.pending && (
-          <Clock size={10} className="animate-pulse text-[var(--accent)]" />
+          <Clock size={10} className="animate-pulse text-(--accent)" />
         )}
 
         {message.failed && (

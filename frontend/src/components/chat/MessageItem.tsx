@@ -127,7 +127,7 @@ export const MessageItem = React.memo(
       <div
         onContextMenu={handleContextMenu}
         onDoubleClick={handleDoubleClick}
-        className={`group relative flex w-full items-stretch gap-3.5 px-3.5 transition-colors duration-150 border-l-2 border-transparent hover:border-[var(--accent)] hover:bg-[var(--surface-secondary)] select-none ${
+        className={`group relative flex w-full items-stretch gap-3.5 px-3.5 transition-colors duration-150 border-l-2 border-transparent hover:border-(--accent) hover:bg-(--surface-secondary) select-none ${
           showHeader ? "mt-3 pt-1 pb-0.5" : "mt-0 py-0.5"
         } ${message.pending ? "opacity-60" : ""}`}
       >
@@ -170,7 +170,7 @@ export const MessageItem = React.memo(
           ) : (
             <time
               dateTime={message.created_at}
-              className="z-10 text-[10px] text-[var(--muted)] font-mono opacity-0 group-hover:opacity-100 transition-all duration-200 -translate-x-1 group-hover:translate-x-0 leading-none my-auto"
+              className="z-10 text-[10px] text-(--muted) font-mono opacity-0 group-hover:opacity-100 transition-all duration-200 -translate-x-1 group-hover:translate-x-0 leading-none my-auto"
             >
               {formatTime(message.created_at)}
             </time>
@@ -181,19 +181,19 @@ export const MessageItem = React.memo(
         <div className="flex flex-1 flex-col min-w-0 justify-center">
           {showHeader && (
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-semibold text-[13px] text-[var(--foreground)] hover:text-[var(--accent)] transition-colors cursor-pointer leading-none">
+              <span className="font-semibold text-[13px] text-(--foreground) hover:text-(--accent) transition-colors cursor-pointer leading-none">
                 {userDisplayName(message.sender)}
               </span>
 
               {isBot && (
-                <span className="bg-[var(--accent)]/10 text-[var(--accent)] px-1.5 py-0.5 text-[8px] font-extrabold tracking-widest uppercase border border-[var(--accent)]/20 rounded-md">
+                <span className="bg-(--accent)/10 text-(--accent) px-1.5 py-0.5 text-[8px] font-extrabold tracking-widest uppercase border border-(--accent)/20 rounded-md">
                   BOT
                 </span>
               )}
 
               <time
                 dateTime={message.created_at}
-                className="text-[10px] text-[var(--muted)] font-medium"
+                className="text-[10px] text-(--muted) font-medium"
               >
                 {formatTime(message.created_at)}
               </time>
@@ -201,15 +201,15 @@ export const MessageItem = React.memo(
           )}
 
           {message.reply_to && !deleted && (
-            <div className="my-1 flex items-center gap-2 rounded-lg border-l-2 border-[var(--accent)] bg-[var(--surface-tertiary)] px-2.5 py-1 text-xs max-w-xl backdrop-blur-sm">
+            <div className="my-1 flex items-center gap-2 rounded-lg border-l-2 border-(--accent) bg-(--surface-tertiary) px-2.5 py-1 text-xs max-w-xl backdrop-blur-sm">
               <CornerUpLeft
                 size={11}
-                className="text-[var(--accent)] shrink-0"
+                className="text-(--accent) shrink-0"
               />
-              <span className="font-semibold text-[11px] text-[var(--foreground)]">
+              <span className="font-semibold text-[11px] text-(--foreground)">
                 {userDisplayName(message.reply_to.sender)}
               </span>
-              <p className="truncate text-[11px] text-[var(--muted)]">
+              <p className="truncate text-[11px] text-(--muted)">
                 {message.reply_to.is_deleted
                   ? "Message deleted"
                   : message.reply_to.content || "Attachment"}
@@ -217,7 +217,7 @@ export const MessageItem = React.memo(
             </div>
           )}
 
-          <div className="text-[13.5px] leading-relaxed text-[var(--foreground)] break-words select-text">
+          <div className="text-[13.5px] leading-relaxed text-(--foreground) break-words select-text">
             <MessageContent message={message} deleted={deleted} jumbo={jumbo} />
           </div>
 

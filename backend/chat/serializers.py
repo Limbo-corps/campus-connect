@@ -63,20 +63,26 @@ class MessageSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_reactions(self, obj) -> list[dict]:
-        """Reactions grouped by emoji: [{emoji, count, user_ids}].
+        """Reactions grouped by emoji: [{emoji, count, user_ids, users}].
 
         This is viewer-agnostic on purpose — the same payload is broadcast to
         every participant, and each client derives its own "reacted" state from
         ``user_ids`` so a broadcast never leaks the actor's perspective.
+
+        ``users`` ([{id, name}]) lets the UI show who reacted in the tooltip;
+        ``name`` is the reactor's username.
         """
         grouped: dict[str, dict] = {}
         for reaction in obj.reactions.all():
             entry = grouped.setdefault(
                 reaction.emoji,
-                {"emoji": reaction.emoji, "count": 0, "user_ids": []},
+                {"emoji": reaction.emoji, "count": 0, "user_ids": [], "users": []},
             )
             entry["count"] += 1
             entry["user_ids"].append(str(reaction.user_id))
+            entry["users"].append(
+                {"id": str(reaction.user_id), "name": reaction.user.username}
+            )
 
         return list(grouped.values())
 
