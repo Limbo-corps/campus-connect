@@ -58,6 +58,8 @@ export interface Participant {
   is_pinned: boolean;
   is_archived: boolean;
   last_read_message: string | null;
+  /** created_at of last_read_message; used for cumulative read receipts. */
+  last_read_at?: string | null;
 }
 
 export interface Conversation {

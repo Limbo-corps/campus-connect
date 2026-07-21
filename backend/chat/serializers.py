@@ -102,6 +102,7 @@ class MessageSerializer(serializers.ModelSerializer):
 
 class ParticipantSerializer(serializers.ModelSerializer):
     user = ChatUserSerializer(read_only=True)
+    last_read_at = serializers.SerializerMethodField()
 
     class Meta:
         model = ConversationParticipant
@@ -113,7 +114,18 @@ class ParticipantSerializer(serializers.ModelSerializer):
             "is_pinned",
             "is_archived",
             "last_read_message",
+            "last_read_at",
         ]
+
+    def get_last_read_at(self, obj) -> str | None:
+        """Timestamp of this participant's last-read message.
+
+        Read receipts are cumulative, so the client compares each message's
+        ``created_at`` against this to decide "seen" — for both direct and
+        group conversations. Derived from ``last_read_message`` (no new field).
+        """
+        message = obj.last_read_message
+        return message.created_at.isoformat() if message else None
 
 
 class ConversationSerializer(serializers.ModelSerializer):

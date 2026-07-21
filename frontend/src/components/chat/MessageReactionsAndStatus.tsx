@@ -4,6 +4,8 @@ import React from "react";
 import { Check, CheckCheck, Clock, AlertCircle } from "lucide-react";
 import { Tooltip, Button } from "@heroui/react";
 import type { LocalMessage } from "@/hooks/useMessages";
+import type { Participant } from "@/types/chat";
+import { SeenByStack } from "./SeenByStack";
 
 interface ReactionUser {
   id: string;
@@ -20,8 +22,11 @@ export interface ReactionGroup {
 interface MessageReactionsAndStatusProps {
   message: LocalMessage;
   isMe: boolean;
+  isGroup?: boolean;
   meId?: string;
   isSeen: boolean;
+  /** Group only: participants whose read-cursor is this message. */
+  readers?: Participant[];
   deleted: boolean;
   canReact: boolean;
   onReact?: (message: LocalMessage, emoji: string) => void;
@@ -29,10 +34,26 @@ interface MessageReactionsAndStatusProps {
 
 export const MessageReactionsAndStatus: React.FC<
   MessageReactionsAndStatusProps
-> = ({ message, isMe, meId, isSeen, deleted, canReact, onReact }) => {
+> = ({
+  message,
+  isMe,
+  isGroup,
+  meId,
+  isSeen,
+  readers = [],
+  deleted,
+  canReact,
+  onReact,
+}) => {
   const reactions = (message.reactions as ReactionGroup[]) ?? [];
+  const hasReaders = isGroup && readers.length > 0;
 
-  if (reactions.length === 0 && !message.is_edited && !isMe) {
+  if (
+    reactions.length === 0 &&
+    !message.is_edited &&
+    !isMe &&
+    !hasReaders
+  ) {
     return null;
   }
 
@@ -109,17 +130,27 @@ export const MessageReactionsAndStatus: React.FC<
       <div className="flex items-center gap-1.5 text-[10px] text-(--muted) ml-auto select-none">
         {message.is_edited && !deleted && <span>(edited)</span>}
 
-        {isMe && !message.pending && !message.failed && !deleted && (
-          <span
-            className="inline-flex items-center text-(--accent)"
-            title={isSeen ? "Seen" : "Delivered"}
-          >
-            {isSeen ? (
-              <CheckCheck size={13} className="stroke-[2.5]" />
-            ) : (
-              <Check size={13} className="stroke-[2.5]" />
-            )}
-          </span>
+        {/* Direct messages: cumulative delivered (✓) / seen (✓✓) ticks. */}
+        {isMe &&
+          !isGroup &&
+          !message.pending &&
+          !message.failed &&
+          !deleted && (
+            <span
+              className="inline-flex items-center text-(--accent)"
+              title={isSeen ? "Seen" : "Delivered"}
+            >
+              {isSeen ? (
+                <CheckCheck size={13} className="stroke-[2.5]" />
+              ) : (
+                <Check size={13} className="stroke-[2.5]" />
+              )}
+            </span>
+          )}
+
+        {/* Group conversations: avatars of who has read up to this message. */}
+        {hasReaders && !message.pending && !message.failed && !deleted && (
+          <SeenByStack readers={readers} />
         )}
 
         {message.pending && (

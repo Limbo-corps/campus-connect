@@ -20,6 +20,7 @@ class ConversationSelector:
                     "memberships",
                     queryset=ConversationParticipant.objects.select_related(
                         "user",
+                        "last_read_message",
                     ),
                 )
             )
@@ -42,6 +43,7 @@ class ConversationSelector:
                     "memberships",
                     queryset=ConversationParticipant.objects.select_related(
                         "user",
+                        "last_read_message",
                     ),
                 )
             )
