@@ -42,8 +42,10 @@ export function DeleteConversationModal({
                 <span className="font-semibold text-[--foreground]">
                   &quot;{conversationName}&quot;
                 </span>
-                ? This action cannot be undone and all message history will be
-                lost.
+                ?{" "}
+                {isGroup
+                  ? "This action cannot be undone and all message history will be lost for everyone."
+                  : "This only removes it from your chat list — the other person keeps their copy, and it'll reappear if either of you sends a new message."}
               </p>
             </AlertDialog.Body>
 

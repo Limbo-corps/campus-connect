@@ -102,7 +102,10 @@ export function ThreadHeader({
     }
   };
 
-  const hasMenu = isGroup || isOwner;
+  // Direct messages have no owner: either participant can remove them from
+  // their own list. Groups keep the owner-only delete.
+  const canDeleteConversation = isGroup ? isOwner : true;
+  const hasMenu = isGroup || canDeleteConversation;
 
   const handleHeaderClick = () => {
     if (!isGroup && other?.username) {
@@ -278,7 +281,7 @@ export function ThreadHeader({
                     </Dropdown.Item>
                   )}
 
-                  {isOwner && (
+                  {canDeleteConversation && (
                     <Dropdown.Item
                       id="delete"
                       textValue={

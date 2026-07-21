@@ -50,6 +50,23 @@ class ConversationSelector:
         )
 
     @staticmethod
+    def get_visible_conversations(user):
+        """Conversations for a user's chat list, excluding ones they've hidden.
+
+        A conversation is hidden when the user's own membership has
+        ``hidden_at`` set (see the per-user DM "delete"). Sending a new message
+        clears that flag, so hidden conversations reappear automatically.
+        """
+        hidden_ids = ConversationParticipant.objects.filter(
+            user=user,
+            hidden_at__isnull=False,
+        ).values_list("conversation_id", flat=True)
+
+        return ConversationSelector.get_user_conversations(user).exclude(
+            id__in=hidden_ids,
+        )
+
+    @staticmethod
     def get_direct_conversation(user1, user2):
         """Return the direct conversation between two users."""
         return (

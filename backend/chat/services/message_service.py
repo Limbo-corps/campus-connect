@@ -61,6 +61,12 @@ class MessageService:
             ]
         )
 
+        # A new message brings the conversation back for anyone who hid it.
+        ConversationParticipant.objects.filter(
+            conversation=conversation,
+            hidden_at__isnull=False,
+        ).update(hidden_at=None)
+
         return message
 
     @staticmethod
