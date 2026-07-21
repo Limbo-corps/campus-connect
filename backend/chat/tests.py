@@ -337,3 +337,115 @@ class GroupPermissionTests(TestCase):
         )
         self.assertEqual(res.status_code, 204)
         self.assertFalse(Conversation.objects.filter(id=self.conv.id).exists())
+
+    def test_member_cannot_delete_group(self):
+        res = self._client(self.member).delete(
+            f"/api/chat/conversations/{self.conv.id}/"
+        )
+        self.assertEqual(res.status_code, 403)
+        self.assertTrue(Conversation.objects.filter(id=self.conv.id).exists())
+
+
+class ReadReceiptSerializationTests(TestCase):
+    """Read receipts are cumulative and derived from last_read_message: the
+    serializer exposes last_read_at (= that message's timestamp) so the client
+    can mark every earlier message seen (issue #17)."""
+
+    def setUp(self):
+        self.alice = make_user("alice")
+        self.bob = make_user("bob")
+        make_mutual(self.alice, self.bob)
+        self.conv = ConversationService.create_direct_conversation(
+            self.alice, self.bob
+        )
+
+    def _client(self, user):
+        c = APIClient()
+        c.force_authenticate(user)
+        return c
+
+    def test_last_read_at_is_the_last_read_message_timestamp(self):
+        m1 = Message.objects.create(
+            conversation=self.conv, sender=self.bob, content="1"
+        )
+        m2 = Message.objects.create(
+            conversation=self.conv, sender=self.bob, content="2"
+        )
+
+        # Alice reads up to m2.
+        res = self._client(self.alice).post(
+            f"/api/chat/conversations/{self.conv.id}/read/",
+            {"message_id": str(m2.id)},
+            format="json",
+        )
+        self.assertEqual(res.status_code, 200)
+
+        # Bob's view of Alice's membership carries last_read_at == m2's time,
+        # which is >= m1's time → m1 is cumulatively "seen".
+        res = self._client(self.bob).get("/api/chat/conversations/")
+        conv = next(c for c in res.data if c["id"] == str(self.conv.id))
+        alice_p = next(
+            p
+            for p in conv["participants_detail"]
+            if p["user"]["username"] == "alice"
+        )
+        self.assertEqual(str(alice_p["last_read_message"]), str(m2.id))
+        self.assertIsNotNone(alice_p["last_read_at"])
+        self.assertGreaterEqual(
+            alice_p["last_read_at"], m1.created_at.isoformat()
+        )
+
+
+class DirectMessageLifecycleTests(TestCase):
+    """DMs are per-user: deleting hides only for you and reappears on a new
+    message; there is no owner-gated global delete (issue #18)."""
+
+    def setUp(self):
+        self.alice = make_user("alice")
+        self.bob = make_user("bob")
+        make_mutual(self.alice, self.bob)
+        self.conv = ConversationService.create_direct_conversation(
+            self.alice, self.bob
+        )
+
+    def _client(self, user):
+        c = APIClient()
+        c.force_authenticate(user)
+        return c
+
+    def _list_ids(self, user):
+        res = self._client(user).get("/api/chat/conversations/")
+        return [c["id"] for c in res.data]
+
+    def test_delete_dm_hides_only_for_that_user(self):
+        res = self._client(self.alice).delete(
+            f"/api/chat/conversations/{self.conv.id}/"
+        )
+        self.assertEqual(res.status_code, 204)
+        self.assertNotIn(str(self.conv.id), self._list_ids(self.alice))
+        self.assertIn(str(self.conv.id), self._list_ids(self.bob))
+        # The conversation is NOT globally deleted.
+        self.assertTrue(Conversation.objects.filter(id=self.conv.id).exists())
+
+    def test_non_creator_can_hide_dm(self):
+        # Bob didn't create the DM (alice did) but can still remove it.
+        res = self._client(self.bob).delete(
+            f"/api/chat/conversations/{self.conv.id}/"
+        )
+        self.assertEqual(res.status_code, 204)
+        self.assertNotIn(str(self.conv.id), self._list_ids(self.bob))
+        self.assertIn(str(self.conv.id), self._list_ids(self.alice))
+
+    def test_new_message_restores_hidden_dm(self):
+        self._client(self.alice).delete(
+            f"/api/chat/conversations/{self.conv.id}/"
+        )
+        self.assertNotIn(str(self.conv.id), self._list_ids(self.alice))
+
+        # Bob messages → the DM reappears for alice.
+        self._client(self.bob).post(
+            f"/api/chat/conversations/{self.conv.id}/messages/",
+            {"content": "you there?"},
+            format="json",
+        )
+        self.assertIn(str(self.conv.id), self._list_ids(self.alice))

@@ -84,6 +84,11 @@ class ConversationParticipant(models.Model):
     is_archived = models.BooleanField(default=False)
     is_pinned = models.BooleanField(default=False)
 
+    # Per-user visibility. When set, the conversation is hidden from this user's
+    # chat list (e.g. they "deleted" a direct message) until a newer message
+    # brings it back. This is per-participant so it never affects anyone else.
+    hidden_at = models.DateTimeField(null=True, blank=True)
+
     last_read_message = models.ForeignKey(
         "Message",
         on_delete=models.SET_NULL,

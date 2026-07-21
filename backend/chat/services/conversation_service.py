@@ -1,4 +1,5 @@
 from django.db import transaction
+from django.utils import timezone
 
 from users.models import User
 
@@ -201,3 +202,31 @@ class ConversationService:
         conversation.save(update_fields=["image"])
 
         return conversation
+
+    @staticmethod
+    @transaction.atomic
+    def hide_for_user(
+        conversation: Conversation,
+        user: User,
+    ) -> None:
+        """Hide a conversation from one user's chat list (per-user "delete").
+
+        Only affects this user; the other participant(s) keep seeing it. A new
+        message clears the flag (see ``unhide_for_all``), so it reappears.
+        """
+        ConversationParticipant.objects.filter(
+            conversation=conversation,
+            user=user,
+        ).update(hidden_at=timezone.now())
+
+    @staticmethod
+    def unhide_for_all(conversation: Conversation) -> None:
+        """Un-hide a conversation for every participant who had hidden it.
+
+        Called when a new message is sent so a previously "deleted" DM comes
+        back for anyone who had removed it — matching WhatsApp/Signal/etc.
+        """
+        ConversationParticipant.objects.filter(
+            conversation=conversation,
+            hidden_at__isnull=False,
+        ).update(hidden_at=None)

@@ -12,6 +12,7 @@ import { MessageReactionsAndStatus } from "./MessageReactionsAndStatus";
 import { formatTime, userDisplayName } from "@/lib/chat/format";
 import { isEmojiOnly } from "@/lib/chat/emoji";
 import type { LocalMessage } from "@/hooks/useMessages";
+import type { Participant } from "@/types/chat";
 
 interface MessageItemProps {
   message: LocalMessage;
@@ -19,11 +20,7 @@ interface MessageItemProps {
   isGroup: boolean;
   showHeader: boolean;
   meId?: string;
-  participantsDetail?: Array<{
-    user: { id: string };
-    last_read_message?: string | null;
-    last_read_at?: string | null;
-  }>;
+  participantsDetail?: Participant[];
   onReply?: (message: LocalMessage) => void;
   onEdit?: (message: LocalMessage) => void;
   onDelete?: (message: LocalMessage) => void;
@@ -34,6 +31,7 @@ export const MessageItem = React.memo(
   function MessageItem({
     message,
     isMe,
+    isGroup,
     showHeader,
     meId,
     participantsDetail = [],
@@ -100,6 +98,24 @@ export const MessageItem = React.memo(
       isMe,
       message.id,
       message.created_at,
+      message.pending,
+      message.failed,
+      deleted,
+      participantsDetail,
+      meId,
+    ]);
+
+    // Group read receipts: participants whose read-cursor is exactly this
+    // message (so each reader's avatar sits at their furthest-read message,
+    // Instagram-style). Excludes me.
+    const readers = React.useMemo<Participant[]>(() => {
+      if (!isGroup || message.pending || message.failed || deleted) return [];
+      return participantsDetail.filter(
+        (p) => p.user.id !== meId && p.last_read_message === message.id,
+      );
+    }, [
+      isGroup,
+      message.id,
       message.pending,
       message.failed,
       deleted,
@@ -224,8 +240,10 @@ export const MessageItem = React.memo(
           <MessageReactionsAndStatus
             message={message}
             isMe={isMe}
+            isGroup={isGroup}
             meId={meId}
             isSeen={isSeen}
+            readers={readers}
             deleted={deleted}
             canReact={canReact}
             onReact={onReact}

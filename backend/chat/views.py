@@ -1,6 +1,5 @@
 import uuid
 from asgiref.sync import async_to_sync
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -85,7 +84,7 @@ class ConversationListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        conversations = ConversationSelector.get_user_conversations(request.user)
+        conversations = ConversationSelector.get_visible_conversations(request.user)
         data = ConversationSerializer(
             conversations,
             many=True,
@@ -167,16 +166,28 @@ class ConversationDetailView(APIView):
         return Response(data)
 
     def delete(self, request, conversation_id):
-        """Delete a conversation (owner only)."""
+        """Remove a conversation.
+
+        • Direct message: hidden for the requesting user only (both
+          participants can do this; the other keeps seeing it, and it
+          reappears when a new message arrives).
+        • Group: deleted for everyone, owner only (unchanged).
+        """
         try:
             conversation = _get_conversation(conversation_id)
-            if conversation.owner_id != request.user.id:  # type: ignore[reportUnnecessaryComparison]
-                raise NotConversationAdmin()
+            _require_participant(conversation, request.user)
         except ChatException as exc:
             return _error(exc)
 
-        async_to_sync(ChatDispatcher.conversation_deleted)(conversation)
-        conversation.delete()
+        if conversation.is_group:
+            if conversation.owner_id != request.user.id:  # type: ignore[reportUnnecessaryComparison]
+                return _error(NotConversationAdmin())
+            async_to_sync(ChatDispatcher.conversation_deleted)(conversation)
+            conversation.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        # Direct message → per-user hide, no global delete.
+        ConversationService.hide_for_user(conversation, request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -454,7 +465,10 @@ class MarkReadView(APIView):
                 conversation=conversation,
                 user=request.user,
                 last_read_message_id=str(message.id),
-                last_read_at_iso=timezone.now().isoformat(),
+                # Use the message's own timestamp (not wall-clock now) so the
+                # cumulative comparison on the client is consistent with the
+                # value served by ParticipantSerializer.last_read_at.
+                last_read_at_iso=message.created_at.isoformat(),
             )
         except Exception:
             # Log broadcasting failures so they can be diagnosed; do not fail
