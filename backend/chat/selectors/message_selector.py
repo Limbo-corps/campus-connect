@@ -31,7 +31,7 @@ class MessageSelector:
                 "reply_to",
                 "reply_to__sender",
             )
-            .prefetch_related("reactions")
+            .prefetch_related("reactions__user")
             .get(id=message_id)
         )
 
@@ -48,7 +48,7 @@ class MessageSelector:
                 "reply_to",
                 "reply_to__sender",
             )
-            .prefetch_related("reactions")
+            .prefetch_related("reactions__user")
             .first()
         )
 
@@ -88,7 +88,7 @@ class MessageSelector:
                 "reply_to",
                 "reply_to__sender",
             )
-            .prefetch_related("reactions")
+            .prefetch_related("reactions__user")
             .order_by("-created_at")
         )
 

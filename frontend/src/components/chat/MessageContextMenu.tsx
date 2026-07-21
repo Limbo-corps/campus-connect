@@ -78,7 +78,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
 
         <Dropdown.Popover
           placement="bottom start"
-          className="min-w-[190px] rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 shadow-2xl backdrop-blur-xl z-[51]"
+          className="min-w-[190px] rounded-xl border border-(--border) bg-(--surface) p-2 shadow-2xl backdrop-blur-xl z-[51]"
         >
           <Dropdown.Menu
             onAction={handleAction}
@@ -88,7 +88,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
               <Dropdown.Item
                 id="reply"
                 textValue="Reply"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] cursor-pointer transition-colors"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-(--foreground) hover:bg-(--accent) hover:text-(--accent-foreground) cursor-pointer transition-colors"
               >
                 <CornerUpLeft size={16} />
                 <span>Reply</span>
@@ -99,7 +99,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
               <Dropdown.Item
                 id="copy"
                 textValue="Copy Text"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] cursor-pointer transition-colors"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-(--foreground) hover:bg-(--accent) hover:text-(--accent-foreground) cursor-pointer transition-colors"
               >
                 <Copy size={16} />
                 <span>Copy Text</span>
@@ -110,7 +110,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
               <Dropdown.Item
                 id="edit"
                 textValue="Edit Message"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-[var(--foreground)] hover:bg-[var(--accent)] hover:text-[var(--accent-foreground)] cursor-pointer transition-colors"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-(--foreground) hover:bg-(--accent) hover:text-(--accent-foreground) cursor-pointer transition-colors"
               >
                 <Pencil size={16} />
                 <span>Edit Message</span>
@@ -121,7 +121,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
               <Dropdown.Item
                 id="delete"
                 textValue="Delete Message"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger)] hover:text-[var(--danger-foreground)] cursor-pointer transition-colors"
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-medium text-(--danger) hover:bg-(--danger) hover:text-(--danger-foreground) cursor-pointer transition-colors"
               >
                 <Trash2 size={16} />
                 <span>Delete Message</span>

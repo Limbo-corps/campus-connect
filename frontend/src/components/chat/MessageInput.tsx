@@ -321,7 +321,7 @@ export function MessageInput({
           onKeyDown={handleKeyDown}
           onPaste={handlePaste}
           placeholder={placeholder}
-          className="max-h-[200px] min-h-[36px] w-full resize-none border-none bg-transparent px-2.5 py-1 text-sm leading-relaxed shadow-none focus:outline-none focus:ring-0"
+          className="max-h-50 min-h-9 w-full resize-none border-none bg-transparent px-2.5 py-1 text-sm leading-relaxed shadow-none focus:outline-none focus:ring-0"
         />
 
         {/* Action Row */}

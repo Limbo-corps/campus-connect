@@ -66,19 +66,19 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
         <ButtonGroup
           size="sm"
           variant="ghost"
-          className="p-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] shadow-lg backdrop-blur-md flex items-center gap-0"
+          className="p-0 rounded-lg border border-(--border) bg-(--surface) shadow-lg backdrop-blur-md flex items-center gap-0"
         >
           {canReact && (
             <Dropdown>
               <Dropdown.Trigger
                 aria-label="Add reaction"
-                className="px-2.5 h-8 rounded-l-lg text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] border-none bg-transparent cursor-pointer flex items-center justify-center transition-colors"
+                className="px-2.5 h-8 rounded-l-lg text-(--muted) hover:bg-(--surface-secondary) hover:text-(--foreground) border-none bg-transparent cursor-pointer flex items-center justify-center transition-colors"
               >
                 <SmilePlus size={15} />
               </Dropdown.Trigger>
               <Dropdown.Popover
                 placement="bottom end"
-                className="border border-[var(--border)] bg-[var(--surface)] shadow-xl backdrop-blur-xl rounded-lg p-1.5"
+                className="border border-(--border) bg-(--surface) shadow-xl backdrop-blur-xl rounded-lg p-1.5"
               >
                 <div className="flex flex-row gap-0.5 p-0.5">
                   {QUICK_EMOJIS.map((emoji) => (
@@ -101,7 +101,7 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
             <Button
               aria-label="Reply"
               onPress={() => onReply(message)}
-              className="px-2.5 h-8 rounded-none text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] flex items-center border-none"
+              className="px-2.5 h-8 rounded-none text-(--muted) hover:bg-(--surface-secondary) hover:text-(--foreground) flex items-center border-none"
             >
               {canReact && <ButtonGroup.Separator />}
               <CornerUpLeft size={15} />
@@ -112,7 +112,7 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
             <Button
               aria-label="Edit Message"
               onPress={() => onEdit(message)}
-              className="px-2.5 h-8 rounded-none text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] flex items-center border-none"
+              className="px-2.5 h-8 rounded-none text-(--muted) hover:bg-(--surface-secondary) hover:text-(--foreground) flex items-center border-none"
             >
               {(canReact || onReply) && <ButtonGroup.Separator />}
               <Pencil size={15} />
@@ -126,7 +126,7 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
                 <div className="flex items-center h-full">
                   <Button
                     aria-label="Delete Message"
-                    className="px-2.5 h-8 rounded-none text-[var(--muted)] hover:bg-[var(--danger)]/10 hover:text-[var(--danger)] flex items-center border-none bg-transparent"
+                    className="px-2.5 h-8 rounded-none text-(--muted) hover:bg-(--danger)/10 hover:text-(--danger) flex items-center border-none bg-transparent"
                   >
                     {(canReact || onReply || canEdit) && (
                       <ButtonGroup.Separator />
@@ -137,13 +137,13 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
               </Popover.Trigger>
               <Popover.Content
                 placement="top"
-                className="border border-[var(--border)] bg-[var(--surface)] shadow-xl rounded-lg p-2 z-50 min-w-44"
+                className="border border-(--border) bg-(--surface) shadow-xl rounded-lg p-2 z-50 min-w-44"
               >
                 <Popover.Dialog className="flex flex-col gap-1">
-                  <Popover.Heading className="text-[11px] font-semibold text-[var(--foreground)] leading-tight">
+                  <Popover.Heading className="text-[11px] font-semibold text-(--foreground) leading-tight">
                     Delete message?
                   </Popover.Heading>
-                  <p className="text-[10px] leading-tight text-[var(--muted)]">
+                  <p className="text-[10px] leading-tight text-(--muted)">
                     This action cannot be undone.
                   </p>
                   <div className="flex items-center justify-end gap-1 pt-0.5">
@@ -151,14 +151,14 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
                       size="sm"
                       variant="ghost"
                       onPress={() => setIsDeleteOpen(false)}
-                      className="px-1.5 h-5 text-[10px] rounded text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)]"
+                      className="px-1.5 h-5 text-[10px] rounded text-(--muted) hover:bg-(--surface-secondary) hover:text-(--foreground)"
                     >
                       Cancel
                     </Button>
                     <Button
                       size="sm"
                       onPress={handleConfirmDelete}
-                      className="px-1.5 h-5 text-[10px] rounded bg-[var(--danger)] text-[var(--danger-foreground)] font-medium hover:opacity-90"
+                      className="px-1.5 h-5 text-[10px] rounded bg-(--danger) text-(--danger-foreground) font-medium hover:opacity-90"
                     >
                       Delete
                     </Button>
@@ -171,7 +171,7 @@ export const HoverActionBar: React.FC<HoverActionBarProps> = ({
           <Button
             aria-label="More options"
             onClick={handleMoreClick}
-            className="px-2.5 h-8 rounded-r-lg text-[var(--muted)] hover:bg-[var(--surface-secondary)] hover:text-[var(--foreground)] flex items-center border-none"
+            className="px-2.5 h-8 rounded-r-lg text-(--muted) hover:bg-(--surface-secondary) hover:text-(--foreground) flex items-center border-none"
           >
             {(canReact || onReply || canEdit || (canModify && onDelete)) && (
               <ButtonGroup.Separator />
